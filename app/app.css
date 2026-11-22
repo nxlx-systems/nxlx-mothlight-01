@@ -153,6 +153,9 @@ body.perform #out{position:fixed;inset:0;visibility:visible;z-index:1}
   .choice{grid-template-columns:72px minmax(0,1fr)}
   .faders{flex-wrap:wrap;height:auto}
   .fader{flex:1 1 30%;max-width:none;height:130px}
+  /* long choices wrap onto two lines instead of being cut, and the drawing note gets a full row under the faders */
+  .seg button{white-space:normal;line-height:16px;padding:var(--s1)}
+  #renderInfo{flex:1 1 100%;margin:0}
   .transport{flex-wrap:wrap}
   .sep{display:none}
   .transport .mid{order:3;flex:1 1 100%;gap:var(--s1)}
