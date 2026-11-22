@@ -475,7 +475,7 @@
   }
 
   // Pages run in signal order: Source, the synth, Trails, Colour, then the LFOs, which reach all of those, and Output
-  const SAME_PAGE = { Osc: 'Osc A', 'Osc A': 'Osc', 'Osc B': 'Osc', Mix: 'Osc' };
+  const SAME_PAGE = { Osc: 'Osc A', 'Osc A': 'Osc', 'Osc B': 'Osc', Mix: 'Osc', Transform: 'Move' };   // Transform was renamed Move in 0.5.3
   let pages = [], current = 0, open = store.get('page', 'Source');
   const cues = {};   // the More cues, filled in below once their parts exist
   function buildTabs() {
@@ -489,8 +489,9 @@
       t.onclick = () => { open = p.label; store.set('page', open); buildTabs(); $('page').scrollTop = 0; };
       tabs.append(t);
     });
+    if (cues.tabs) cues.tabs();   // first, so the open tab is scrolled into the room the cue leaves
     const on = tabs.children[current]; if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    buildPage(); if (cues.tabs) cues.tabs();
+    buildPage();
   }
   const showing = special => pages[current] && pages[current].special === special;
   function buildPage() {
@@ -953,7 +954,11 @@
     function update() {
       const size = across ? area.clientWidth : area.clientHeight, full = across ? area.scrollWidth : area.scrollHeight;
       const pos = across ? area.scrollLeft : area.scrollTop;
-      btn.hidden = !(full > size + 1);   // shown while the area overflows; showing it only makes it overflow more, so no flicker
+      // shown while the area overflows and can scroll; showing it only makes it overflow more, so no flicker
+      const scrolls = getComputedStyle(area)[across ? 'overflowX' : 'overflowY'] !== 'visible';
+      const hide = !(scrolls && full > size + 1);
+      if (hide && !btn.hidden && document.activeElement === btn) area.focus({ preventScroll: true });   // focus stays nearby
+      btn.hidden = hide;
       atEnd = pos + size >= full - 2;
       const s = say[atEnd ? 1 : 0];
       if (word.textContent !== s[0]) { word.textContent = s[0]; mark.textContent = s[1]; btn.setAttribute('aria-label', s[2]); }
@@ -964,7 +969,7 @@
       area.scrollBy({ [across ? 'left' : 'top']: by, behavior: calm ? 'auto' : 'smooth' });
     };
     area.addEventListener('scroll', update, { passive: true });
-    if (self.ResizeObserver) new ResizeObserver(update).observe(area);
+    if (self.ResizeObserver) new ResizeObserver(() => requestAnimationFrame(update)).observe(area);   // next frame: no resize loop
     window.addEventListener('resize', update);
     return update;
   }
@@ -972,6 +977,7 @@
   cues.tabs = moreCue($('tabs'), $('tabsMore'), true);
   cues.help = moreCue($('helpBody'), $('helpMore'), false);
   cues.page(); cues.tabs();
+  if (document.fonts) document.fonts.ready.then(() => { cues.page(); cues.tabs(); cues.help(); });   // text wraps differently once the fonts load
 
   // ---- help: shown once on a first open, with the light safety note, and any time from the Help button -----------
   function setHelp(on) {
