@@ -477,6 +477,7 @@
   // Pages run in signal order: Source, the synth, Trails, Colour, then the LFOs, which reach all of those, and Output
   const SAME_PAGE = { Osc: 'Osc A', 'Osc A': 'Osc', 'Osc B': 'Osc', Mix: 'Osc' };
   let pages = [], current = 0, open = store.get('page', 'Source');
+  const cues = {};   // the More cues, filled in below once their parts exist
   function buildTabs() {
     showRandom();
     pages = [{ label: 'Source', special: 'source' }].concat(SOURCES[S.source].pages, S.driftOn ? DRIFT_PAGES : [], COLOUR_PAGES, LFO_PAGES, OUTPUT_PAGES);
@@ -485,14 +486,15 @@
     pages.forEach((p, k) => {
       const t = document.createElement('button'); t.type = 'button'; t.className = 'tab'; t.setAttribute('role', 'tab');
       t.textContent = p.label; t.setAttribute('aria-selected', String(k === current));
-      t.onclick = () => { open = p.label; store.set('page', open); buildTabs(); };
+      t.onclick = () => { open = p.label; store.set('page', open); buildTabs(); $('page').scrollTop = 0; };
       tabs.append(t);
     });
-    buildPage();
+    const on = tabs.children[current]; if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    buildPage(); if (cues.tabs) cues.tabs();
   }
   const showing = special => pages[current] && pages[current].special === special;
   function buildPage() {
-    views = [];
+    views = []; queueMicrotask(() => { if (cues.page) cues.page(); });   // the More cue reads the page once it is built
     const page = $('page'); page.textContent = '';
     const p = pages[current], box = document.createElement('div'); box.className = 'choices';
     if (p.special === 'source') {
@@ -939,17 +941,53 @@
     requestAnimationFrame(loop);
   }
 
+  // ---- "More": a scrolling area that does not show everything says so in words, with a button that goes there.
+  // The cue has its own row (it never covers a fader or pad) and stays while the area overflows, so nothing jumps as you
+  // scroll: "More below" until the end, then "Back to top". Tabs that do not fit get "More" at the end of their row.
+  function moreCue(area, btn, across) {
+    const say = across ? [['More', '\u25B8', 'More tabs'], ['Back', '\u25C2', 'Back to the first tab']]
+                       : [['More below', '\u25BE', 'More below'], ['Back to top', '\u25B4', 'Back to top']];
+    const word = document.createElement('span'), mark = document.createElement('span'); mark.setAttribute('aria-hidden', 'true');
+    btn.append(word, mark);
+    let atEnd = false;
+    function update() {
+      const size = across ? area.clientWidth : area.clientHeight, full = across ? area.scrollWidth : area.scrollHeight;
+      const pos = across ? area.scrollLeft : area.scrollTop;
+      btn.hidden = !(full > size + 1);   // shown while the area overflows; showing it only makes it overflow more, so no flicker
+      atEnd = pos + size >= full - 2;
+      const s = say[atEnd ? 1 : 0];
+      if (word.textContent !== s[0]) { word.textContent = s[0]; mark.textContent = s[1]; btn.setAttribute('aria-label', s[2]); }
+    }
+    btn.onclick = () => {
+      const size = across ? area.clientWidth : area.clientHeight;
+      const by = atEnd ? -(across ? area.scrollWidth : area.scrollHeight) : Math.max(40, size * 0.8);
+      area.scrollBy({ [across ? 'left' : 'top']: by, behavior: calm ? 'auto' : 'smooth' });
+    };
+    area.addEventListener('scroll', update, { passive: true });
+    if (self.ResizeObserver) new ResizeObserver(update).observe(area);
+    window.addEventListener('resize', update);
+    return update;
+  }
+  cues.page = moreCue($('page'), $('pageMore'), false);
+  cues.tabs = moreCue($('tabs'), $('tabsMore'), true);
+  cues.help = moreCue($('helpBody'), $('helpMore'), false);
+  cues.page(); cues.tabs();
+
   // ---- help: shown once on a first open, with the light safety note, and any time from the Help button -----------
   function setHelp(on) {
     $('help').hidden = !on;
-    if (on) { store.set('helpSeen', true); $('helpClose').focus({ preventScroll: true }); $('help').querySelector('.helpbox').scrollTop = 0; } else $('helpOpen').focus();
+    if (on) { store.set('helpSeen', true); $('helpBody').scrollTop = 0; $('helpBody').focus({ preventScroll: true }); cues.help(); } else $('helpOpen').focus();
   }
   $('helpVersion').textContent = self.SIGNAL_VERSION || '';
   $('helpOpen').onclick = () => setHelp(true);
   $('helpClose').onclick = () => setHelp(false);
   $('help').addEventListener('keydown', e => {
     if (e.key === 'Escape') { e.preventDefault(); setHelp(false); }
-    else if (e.key === 'Tab') { e.preventDefault(); $('helpClose').focus(); }   // the panel has one control, so focus stays on it
+    else if (e.key === 'Tab') {   // focus stays inside: the text (arrow keys scroll it), More, Close
+      const f = [$('helpBody'), $('helpMore'), $('helpClose')].filter(x => !x.hidden);
+      const i = f.indexOf(document.activeElement);
+      e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+    }
   });
   $('help').addEventListener('click', e => { if (e.target === $('help')) setHelp(false); });
   if (!store.get('helpSeen', false)) setHelp(true);

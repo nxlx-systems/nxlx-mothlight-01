@@ -44,8 +44,9 @@
     </section>
 
     <section class="col" aria-label="Modules">
-      <div class="tabs" role="tablist" id="tabs"></div>
+      <div class="tabrow"><div class="tabs" role="tablist" id="tabs"></div><button type="button" class="more more-x" id="tabsMore" aria-controls="tabs" hidden></button></div>
       <div class="page" id="page"></div>
+      <button type="button" class="more" id="pageMore" aria-controls="page" hidden></button>
     </section>
   </main>
 
@@ -66,7 +67,8 @@
 <button type="button" id="back" hidden>Show controls</button>
 <div id="msg" role="status" hidden></div>
 <div id="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
-  <div class="helpbox">
+  <div class="helpwrap">
+  <div class="helpbox" id="helpBody" tabindex="0" role="region" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Mothlight No.01</h2>
     <p class="safety"><b>Light safety.</b> Mothlight No.01 makes moving and changing light patterns. If you or anyone watching has photosensitive epilepsy, or a pattern makes you feel unwell, stop and look away. Hold Blackout to stop the picture.</p>
     <h3>How to play it</h3>
@@ -86,9 +88,11 @@
       <li>Android phones and tablets, Fire included: open the browser menu, then Install app or Add to Home screen.</li>
       <li>Computers: in Chrome or Edge, use the install button in the address bar. In Safari on a Mac, choose File, then Add to Dock. In other browsers, bookmark it.</li>
     </ul>
-    <p>Once installed it opens with no internet. Your settings and presets stay in this browser on this device. Measured so far only on an Amazon Fire 7 (2019); other devices are not yet tested.</p>
+    <p>Once installed it opens with no internet. Your settings and presets stay in this browser on this device. Tried so far on an Amazon Fire 7 (2019) and an iPhone 17 Pro; other devices are not yet tested.</p>
     <p class="num-small">NXLX.Systems · version <span id="helpVersion"></span></p>
     <button type="button" id="helpClose">Close</button>
+  </div>
+  <button type="button" class="more" id="helpMore" aria-controls="helpBody" hidden></button>
   </div>
 </div>
 <script src="version.js"></script>
