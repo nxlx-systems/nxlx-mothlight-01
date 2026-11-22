@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Mothlight No.01</title>
+<meta name="theme-color" content="#FF4FA3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mothlight No.01">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+  <header class="place">
+    <h1>Mothlight No.01</h1>
+    <span class="spacer"></span>
+    <span class="num-small" id="fps">-- fps</span>
+    <button type="button" id="helpOpen" aria-haspopup="dialog">Help</button>
+    <button type="button" id="install" hidden>Install</button>
+    <button type="button" id="full">Full screen</button>
+  </header>
+
+  <main>
+    <section class="col" aria-label="Output">
+      <div class="now">
+        <div class="frame"><canvas id="out"></canvas></div>
+        <div class="meta">
+          <p class="title" id="name">Solo</p>
+          <span class="chip live" id="chipState">Live</span>
+          <span class="chip attn" id="chipFrozen" hidden>Frozen</span>
+          <span class="chip attn" id="chipFaded" hidden>Faded</span>
+          <span class="chip" id="chipDelay">Delay 1</span>
+          <span class="chip" id="chipMidi" hidden>MIDI</span>
+          <span class="chip" id="chipOut" hidden>Video out</span>
+          <span class="chip attn" id="chipLearn" hidden>Learn</span>
+          <span class="chip" id="chipOffline" hidden>Offline ready</span>
+        </div>
+      </div>
+      <div class="mems" id="mems" aria-label="Presets"></div>
+    </section>
+
+    <section class="col" aria-label="Modules">
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div class="page" id="page"></div>
+    </section>
+  </main>
+
+  <footer class="transport">
+    <button type="button" class="tbtn" id="perform"><span>Perform</span><small>Picture only</small></button>
+    <div class="sep"></div>
+    <div class="mid">
+      <button type="button" class="tbtn" id="freeze" aria-pressed="false"><span>Freeze</span><small>Hold frame</small></button>
+      <button type="button" class="tbtn" id="fade" aria-pressed="false"><span>Fade</span><small>2 s</small></button>
+      <button type="button" class="tbtn" id="clear"><span>Clear</span><small>Trails</small></button>
+      <button type="button" class="tbtn" id="random"><span>Random</span><small>New look</small></button>
+      <button type="button" class="tbtn" id="learn" aria-pressed="false"><span>MIDI learn</span><small id="learnHint">Map a knob</small></button>
+    </div>
+    <div class="sep"></div>
+    <button type="button" class="tbtn danger" id="black"><span>Blackout</span><small>Hold</small><i class="hold"></i></button>
+  </footer>
+</div>
+<button type="button" id="back" hidden>Show controls</button>
+<div id="msg" role="status" hidden></div>
+<div id="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
+  <div class="helpbox">
+    <h2 id="helpTitle">Mothlight No.01</h2>
+    <p class="safety"><b>Light safety.</b> Mothlight No.01 makes moving and changing light patterns. If you or anyone watching has photosensitive epilepsy, or a pattern makes you feel unwell, stop and look away. Hold Blackout to stop the picture.</p>
+    <h3>How to play it</h3>
+    <ul>
+      <li>The tabs run left to right in the order the signal flows: Source, Osc (the pattern), Trails, Move, Colour, LFO and Output.</li>
+      <li>Tap a fader twice to put it back. Tap a pad twice to centre it.</li>
+      <li>Presets P1 to P8: hold to save, tap to recall.</li>
+      <li>Blackout: hold to go black, tap to come back.</li>
+      <li>Perform shows the picture alone. Tap the picture, then Show controls, to come back.</li>
+      <li>Random only changes the groups lit on the Source page.</li>
+      <li>MIDI learn: tap MIDI learn, tap a control, then move a knob. It needs a browser with Web MIDI, such as Chrome or Edge on a computer, or Chrome on Android. Safari does not have it.</li>
+      <li>With a keyboard: arrow keys move a fader or pad, Delete puts it back, Enter recalls a preset and Shift and Enter saves one.</li>
+    </ul>
+    <h3>Put it on your home screen</h3>
+    <ul>
+      <li>iPhone or iPad: open it in Safari, tap Share, then Add to Home Screen.</li>
+      <li>Android phones and tablets, Fire included: open the browser menu, then Install app or Add to Home screen.</li>
+      <li>Computers: in Chrome or Edge, use the install button in the address bar. In Safari on a Mac, choose File, then Add to Dock. In other browsers, bookmark it.</li>
+    </ul>
+    <p>Once installed it opens with no internet. Your settings and presets stay in this browser on this device. Measured so far only on an Amazon Fire 7 (2019); other devices are not yet tested.</p>
+    <p class="num-small">NXLX.Systems · version <span id="helpVersion"></span></p>
+    <button type="button" id="helpClose">Close</button>
+  </div>
+</div>
+<script src="version.js"></script>
+<script src="core.js"></script>
+<script src="../isf/signal-isf.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

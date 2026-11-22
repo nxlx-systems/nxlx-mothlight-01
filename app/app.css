@@ -1,0 +1,175 @@
+/* NXLX House, Shaders area. Mothlight No.01 standalone: output and presets | module pages, transport at the foot. */
+@font-face{font-family:"Archivo";src:url(fonts/archivo-latin.06fa7831.woff2) format("woff2");font-weight:400 900;font-style:normal;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url(fonts/jetbrains-mono-500-latin.6c95bc2f.woff2) format("woff2");font-weight:500;font-style:normal;font-display:swap}
+:root{--ground:#0B0B0D;--raised:#141417;--control:#1C1C20;--pressed:#26262B;--line:#2C2C33;--edge:#6C6C76;
+--text:#F2EFE8;--text-2:#B4B1AA;--text-3:#8C8A85;--text-off:#6E6D69;--on-colour:#0B0B0D;
+--area-shaders:#FF4FA3;--live:#00E0FF;--attention:#FF9500;--problem:#FF453A;
+--font-sans:"Archivo",system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;
+--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--radius:3px;--radius-inner:2px;
+--stroke-hair:1px;--stroke-mark:2px;--hit:44px;--hit-live:56px;--hit-big:72px;
+--t-quick:120ms;--ease:cubic-bezier(.2,0,0,1);--area:var(--area-shaders);color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--ground);color:var(--text);font:500 16px/22px var(--font-sans);overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer}
+.caption{font:600 12px/16px var(--font-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.num{font:500 14px/18px var(--font-mono);font-variant-numeric:tabular-nums}
+.num-small{font:500 12px/16px var(--font-mono);font-variant-numeric:tabular-nums}
+
+#app{height:100%;display:grid;grid-template-rows:52px minmax(0,1fr) auto}
+
+/* Place bar: the one flood */
+.place{display:flex;align-items:center;gap:var(--s3);background:var(--area);color:var(--on-colour);padding:0 var(--s4)}
+.place h1{margin:0;font:900 20px/24px var(--font-sans);letter-spacing:.06em;text-transform:uppercase}
+.place .spacer{flex:1}
+.place button{min-height:var(--hit);padding:0 var(--s3);background:transparent;color:var(--on-colour);
+  border:var(--stroke-hair) solid var(--on-colour);border-radius:var(--radius);font:600 14px/18px var(--font-sans)}
+
+main{display:grid;grid-template-columns:minmax(0,46fr) minmax(0,54fr);gap:var(--s4);min-height:0;padding:var(--s3) var(--s4)}
+.col{display:flex;flex-direction:column;gap:var(--s3);min-height:0;min-width:0}
+
+/* Now panel */
+.now{background:var(--raised);border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.frame{position:relative;width:100%;aspect-ratio:16/9;max-height:calc(100vh - 290px);background:#000;border-bottom:var(--stroke-hair) solid var(--line)}
+#out{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:contain;background:#000}
+.meta{display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s3);flex-wrap:wrap;min-height:40px}
+.meta .title{font:700 16px/20px var(--font-sans);margin:0 auto 0 0}
+.chip{font:500 11px/16px var(--font-mono);letter-spacing:.04em;text-transform:uppercase;padding:1px var(--s2);
+  border-radius:var(--radius-inner);border:var(--stroke-hair) solid var(--edge);color:var(--text-2);white-space:nowrap}
+.chip.live{background:var(--live);border-color:var(--live);color:var(--on-colour)}
+.chip.attn{border-color:var(--attention);color:var(--attention)}
+.chip.prob{background:var(--problem);border-color:var(--problem);color:var(--on-colour)}
+
+/* Presets */
+.mems{flex:1;min-height:var(--hit-live);max-height:96px;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:var(--s2)}
+.mem{position:relative;background:var(--control);border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);overflow:hidden;
+  display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:var(--s1) var(--s2);text-align:left}
+.mem b{font:600 14px/18px var(--font-sans)}
+.mem small{font:500 11px/16px var(--font-mono);letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.mem.empty b{color:var(--text-3)}
+.mem:active{background:var(--pressed)}
+.mem[aria-pressed="true"]{background:var(--pressed);box-shadow:inset 0 calc(-1 * var(--stroke-mark)) 0 var(--area)}
+.hold{position:absolute;left:0;bottom:0;height:var(--stroke-mark);width:0;background:currentColor}
+
+/* Module pages */
+/* the tabs slide sideways whenever they do not fit, at any width */
+.tabs{display:flex;justify-content:space-between;flex-shrink:0;min-height:var(--hit);border-bottom:var(--stroke-hair) solid var(--line);overflow-x:auto;overflow-y:hidden;touch-action:pan-x;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;min-height:var(--hit);padding:0 var(--s2);white-space:nowrap;background:transparent;border:0;border-bottom:3px solid transparent;
+  font:600 14px/18px var(--font-sans);color:var(--text-2)}
+.tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--area)}
+.page{flex:1;min-height:0;display:flex;flex-direction:column;gap:var(--s3)}
+.choices{display:flex;flex-direction:column;gap:var(--s2)}
+.choice{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:var(--s2)}
+.seg{display:flex;flex-wrap:wrap;gap:2px;background:var(--line);border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);overflow:hidden}
+.seg button{flex:1 1 0;min-width:52px;min-height:var(--hit);padding:0 var(--s2);background:var(--control);border:0;font:600 14px/18px var(--font-sans);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--pressed);box-shadow:inset 0 calc(-1 * var(--stroke-mark)) 0 var(--area)}
+.faders{flex:1;min-height:0;display:flex;gap:var(--s2)}
+.fader{flex:1 1 0;min-width:0;max-width:110px;display:flex;flex-direction:column;align-items:center;gap:var(--s1);min-height:0}
+.track{position:relative;flex:1;width:100%;min-height:60px;background:var(--control);border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);touch-action:none}
+.track .fill{position:absolute;left:50%;width:2px;margin-left:-1px;background:var(--text-3)}
+.track .cap{position:absolute;left:var(--s1);right:var(--s1);height:6px;margin-top:-3px;background:var(--text);border-radius:var(--radius-inner)}
+.track.held{background:var(--pressed)}
+#renderInfo{flex:2 1 0;min-width:0;margin:var(--s5) 0 0 var(--s2);color:var(--text-2)}
+.fader .caption{max-width:100%;min-height:32px;text-align:center;letter-spacing:.04em}
+
+.pads{flex:1;min-height:0;display:flex;gap:var(--s3)}
+.padbox{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:var(--s1)}
+.pad{position:relative;flex:1;min-height:0;background:var(--control);border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);touch-action:none;overflow:hidden}
+.pad.held{background:var(--pressed)}
+.pad .h,.pad .v{position:absolute;background:var(--line)}
+.pad .h{left:0;right:0;top:50%;height:1px}
+.pad .v{top:0;bottom:0;left:50%;width:1px}
+.pad .dot{position:absolute;width:20px;height:20px;margin:-10px 0 0 -10px;background:var(--text);border-radius:var(--radius)}
+.pad .edge{position:absolute;font:600 12px/16px var(--font-sans);color:var(--text-3)}
+.pad .top{top:var(--s1);left:0;right:0;text-align:center}
+.pad .bottom{bottom:var(--s1);left:0;right:0;text-align:center}
+.pad .left{left:var(--s2);top:50%;margin-top:-8px}
+.pad .right{right:var(--s2);top:50%;margin-top:-8px}
+.padnums{display:flex;justify-content:space-between;align-items:center;gap:var(--s2)}
+
+/* What has no effect in the current setting */
+.idle{opacity:.4}
+
+/* Transport */
+.transport{display:flex;gap:var(--s2);align-items:stretch;border-top:var(--stroke-hair) solid var(--line);background:var(--raised);padding:var(--s2) var(--s4)}
+.transport .mid{flex:1;display:flex;gap:var(--s2);justify-content:center}
+.tbtn{position:relative;min-height:var(--hit-live);min-width:96px;padding:0 var(--s3);background:var(--control);border:var(--stroke-hair) solid var(--line);
+  border-radius:var(--radius);font:600 14px/18px var(--font-sans);overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.tbtn small{font:500 11px/16px var(--font-mono);letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.tbtn:active{background:var(--pressed)}
+.tbtn[aria-pressed="true"]{background:var(--pressed);box-shadow:inset 0 calc(-1 * var(--stroke-mark)) 0 var(--area)}
+.tbtn.danger{border-color:var(--problem);color:var(--problem)}
+.sep{width:1px;background:var(--line)}
+:focus-visible{outline:var(--stroke-mark) solid var(--area);outline-offset:2px}
+
+/* Learn: mappable controls get a dashed attention outline, the chosen one a solid one */
+body.learning .track,body.learning .pad,body.learning .mem,body.learning .seg:not(.local) button,body.learning .tbtn:not(#learn){outline:var(--stroke-hair) dashed var(--attention);outline-offset:1px}
+body.learning .target{outline:var(--stroke-mark) solid var(--attention)!important}
+
+/* Perform: the picture alone */
+body.perform #app{visibility:hidden}
+body.perform #out{position:fixed;inset:0;visibility:visible;z-index:1}
+#back{position:fixed;right:var(--s4);bottom:var(--s4);z-index:2;min-height:var(--hit-live);padding:0 var(--s4);background:var(--raised);color:var(--text);
+  border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);font:600 14px/18px var(--font-sans)}
+
+/* Messages that stay */
+#msg{position:fixed;left:50%;top:60px;transform:translateX(-50%);z-index:3;max-width:80%;background:var(--raised);border:var(--stroke-hair) solid var(--attention);
+  color:var(--text);border-radius:var(--radius);padding:var(--s2) var(--s3);font:500 14px/20px var(--font-sans)}
+
+@media (max-width:900px){ .tbtn{min-width:72px;padding:0 var(--s2)} }
+/* Phones: tabs slide sideways and a page that does not fit scrolls, with its faders and pads kept playable */
+@media (max-width:900px),(max-height:520px){
+  .tabs{flex-shrink:0;justify-content:flex-start;overflow-x:auto;touch-action:pan-x;scrollbar-width:none}
+  .tab{flex:none}
+  .page{overflow-x:hidden;overflow-y:auto;touch-action:pan-y}
+  .faders{flex:none;height:150px}
+  .pads{flex:none;height:150px}
+}
+@media (max-height:520px){ .tbtn{min-height:var(--hit)} .tbtn small{display:none} .mem small{display:none} }
+/* Upright phone: one column, and the transport on two rows. Only with height to spare: a short, narrow window
+   (a small phone on its side, or a laptop at 200% zoom) keeps two columns, or the module pages have no room at all */
+@media (max-width:700px) and (min-height:521px){
+  main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:var(--s3)}
+  #fps,#full{display:none}
+  .mem small{display:none}
+  .mems{max-height:44px}
+  /* a smaller picture, still 16:9 and centred, so the module pages get the room */
+  .frame{width:auto;height:min(22vh,calc((100vw - 32px) * 9 / 16));max-height:none;max-width:100%;align-self:center;border-bottom:0}
+  .meta{min-height:32px;padding:var(--s1) var(--s3)}
+  #chipOffline{display:none}
+  .choice{grid-template-columns:72px minmax(0,1fr)}
+  .faders{flex-wrap:wrap;height:auto}
+  .fader{flex:1 1 30%;max-width:none;height:130px}
+  .transport{flex-wrap:wrap}
+  .sep{display:none}
+  .transport .mid{order:3;flex:1 1 100%;gap:var(--s1)}
+  .transport>.tbtn{flex:1}
+  .tbtn{min-width:0;min-height:var(--hit);padding:0 var(--s1)}
+  .mid .tbtn{flex:1 1 0}
+  .tbtn small{display:none}
+}
+@media (max-height:520px){ .frame{max-height:calc(100vh - 250px)} .mems{max-height:56px} .meta{min-height:32px;padding:var(--s1) var(--s3)}
+  /* phones on their side: less status, and long choices shrink instead of being cut off */
+  #chipOffline,#chipDelay{display:none}
+  .seg button{min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis}
+  .page{scrollbar-width:thin} }
+/* short and narrow: the transport buttons share one row */
+@media (max-width:700px) and (max-height:520px){ #fps{display:none} .tbtn{min-width:0;padding:0 var(--s1)} .transport .mid .tbtn,.transport>.tbtn{flex:1 1 0} .transport{padding:var(--s1) var(--s2)} main{gap:var(--s2);padding:var(--s2)} .sep{display:none} .mems{gap:var(--s1)} .mem{padding:var(--s1)} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+
+/* Help: one panel over everything, read and closed */
+#help{position:fixed;inset:0;z-index:4;background:rgba(11,11,13,.82);display:flex;align-items:center;justify-content:center;padding:var(--s4)}
+.helpbox{width:100%;max-width:640px;max-height:100%;overflow-y:auto;touch-action:pan-y;-webkit-user-select:text;user-select:text;background:var(--raised);
+  border:var(--stroke-hair) solid var(--line);border-top:var(--stroke-mark) solid var(--area);border-radius:var(--radius);padding:var(--s4) var(--s5);font:500 14px/20px var(--font-sans)}
+.helpbox h2{margin:0 0 var(--s3);font:900 20px/24px var(--font-sans);letter-spacing:.06em;text-transform:uppercase}
+.helpbox h3{margin:var(--s4) 0 var(--s2);font:600 12px/16px var(--font-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.helpbox ul{margin:0;padding-left:var(--s5)}
+.helpbox li{margin:0 0 var(--s1)}
+.helpbox p{margin:var(--s3) 0 0}
+.helpbox .safety{margin:0;padding:var(--s2) var(--s3);border:var(--stroke-hair) solid var(--attention);border-radius:var(--radius)}
+.helpbox .num-small{color:var(--text-3)}
+#helpClose{margin-top:var(--s4);min-height:var(--hit);min-width:96px;padding:0 var(--s4);background:var(--control);border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);font:600 14px/18px var(--font-sans)}
