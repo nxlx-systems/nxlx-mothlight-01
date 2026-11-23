@@ -38,15 +38,16 @@
           <span class="chip" id="chipOut" hidden>Video out</span>
           <span class="chip attn" id="chipLearn" hidden>Learn</span>
           <span class="chip" id="chipOffline" hidden>Offline ready</span>
+          <span class="chip" id="chipUpdate" hidden>Update ready</span>
         </div>
       </div>
       <div class="mems" id="mems" aria-label="Presets"></div>
     </section>
 
     <section class="col" aria-label="Modules">
-      <div class="tabrow"><div class="tabs" role="tablist" id="tabs" tabindex="-1"></div><button type="button" class="more more-x" id="tabsMore" aria-controls="tabs" hidden></button></div>
-      <div class="page" id="page" tabindex="-1"></div>
-      <button type="button" class="more" id="pageMore" aria-controls="page" hidden></button>
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div class="scrollbox"><div class="page" id="page"></div><div class="scrolltrack" id="pageTrack" aria-hidden="true" hidden><div></div></div></div>
+      <p class="morenote" id="pageMore" aria-hidden="true" hidden></p>
     </section>
   </main>
 
@@ -68,6 +69,7 @@
 <div id="msg" role="status" hidden></div>
 <div id="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
   <div class="helpwrap">
+  <div class="scrollbox helpscroll">
   <div class="helpbox" id="helpBody" tabindex="0" role="region" aria-labelledby="helpTitle">
     <h2 id="helpTitle">Mothlight No.01</h2>
     <p class="safety"><b>Light safety.</b> Mothlight No.01 makes moving and changing light patterns. If you or anyone watching has photosensitive epilepsy, or a pattern makes you feel unwell, stop and look away. Hold Blackout to stop the picture.</p>
@@ -89,10 +91,37 @@
       <li>Computers: in Chrome or Edge, use the install button in the address bar. In Safari on a Mac, choose File, then Add to Dock. In other browsers, bookmark it.</li>
     </ul>
     <p>Once installed it opens with no internet. Your settings and presets stay in this browser on this device. Tried so far on an Amazon Fire 7 (2019) and an iPhone 17 Pro; other devices are not yet tested.</p>
+    <h3>Updates and backups</h3>
+    <p id="updAbout">Mothlight No.01 stays as it is until you choose to update, so it never changes in the middle of a set. Updating keeps your settings, presets and MIDI map.</p>
+    <div class="helpbtns" id="updRow"><button type="button" id="updCheck">Check for updates</button><button type="button" id="updGo" hidden>Update now</button><button type="button" id="updAgain" hidden>Fetch the app again</button></div>
+    <p class="helpnote" id="updNote" role="status" hidden></p>
+    <p>A backup is one small file holding your settings, presets and MIDI map. Make one before a show, or use it to move them to another device.</p>
+    <div class="helpbtns">
+      <button type="button" id="bkSave">Back up to a file</button>
+      <label class="btnlike" for="bkFile" id="bkLoad" role="button" tabindex="0">Restore from a file</label>
+      <input type="file" id="bkFile" class="vh" accept=".json,application/json,text/plain" tabindex="-1" aria-hidden="true">
+      <button type="button" id="bkCopy">Copy as text</button>
+      <button type="button" id="bkPaste">Restore from text</button>
+      <button type="button" id="bkUndo" hidden>Undo the last restore</button>
+    </div>
+    <p class="helpnote" id="bkNote" role="status" hidden></p>
+    <div id="pasteArea" hidden>
+      <textarea id="pasteBox" rows="4" aria-label="Backup text" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <div class="helpbtns"><button type="button" id="pasteGo">Restore from text</button><button type="button" id="pasteCancel">Cancel</button></div>
+    </div>
+    <h3>About</h3>
+    <p>Made by Anthony Giglio of NXLX.Systems. Anthony is an AV performer and VJ in Saskatoon who builds tools for the stage.</p>
+    <ul>
+      <li><a href="https://nxlx.gumroad.com/l/mothlight-no-01" target="_blank" rel="noopener">Support this app</a>: pay what you want on Gumroad</li>
+      <li><a href="https://nxlx.gumroad.com" target="_blank" rel="noopener">More from NXLX</a>: stage tools and updates on Gumroad</li>
+      <li><a href="https://instagram.com/nxlx.systems" target="_blank" rel="noopener">Instagram</a>: @nxlx.systems</li>
+    </ul>
     <p class="num-small">NXLX.Systems · version <span id="helpVersion"></span></p>
     <button type="button" id="helpClose">Close</button>
   </div>
-  <button type="button" class="more" id="helpMore" aria-controls="helpBody" hidden></button>
+  <div class="scrolltrack" id="helpTrack" aria-hidden="true" hidden><div></div></div>
+  </div>
+  <p class="morenote" id="helpMore" aria-hidden="true" hidden></p>
   </div>
 </div>
 <script src="version.js"></script>
