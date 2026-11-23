@@ -9,7 +9,7 @@
 // a copy kept then cannot start. A new name makes every browser fetch one fresh, whole copy by itself, once.
 const CACHE = 'mothlight-1';
 const FILES = ['./', 'index.html', 'app.css', 'app.js', 'core.js', 'version.js', 'out-worker.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'fonts/archivo-latin.06fa7831.woff2', 'fonts/jetbrains-mono-500-latin.6c95bc2f.woff2',
-  '../isf/signal-solo.fs', '../isf/signal-trails.fs', '../isf/signal-duo.fs', '../isf/signal-colour.fs', '../isf/signal-isf.js'];
+  '../isf/mothlight-solo.fs', '../isf/mothlight-trails.fs', '../isf/mothlight-duo.fs', '../isf/mothlight-colour.fs', '../isf/mothlight-isf.js'];
 
 // The version on the internet now, so every file can be asked for by it: the web host keeps files for a few minutes,
 // and asking by version gets past that, so old and new files never mix in one copy.
@@ -30,7 +30,7 @@ self.addEventListener('install', e => {
 });
 
 self.addEventListener('activate', e => {
-  // copies from before: mothlight-app (1.0) and signal-synth-<version> (before 1.0)
+  // copies kept by earlier versions, under their older names
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
 

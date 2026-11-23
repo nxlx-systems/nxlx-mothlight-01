@@ -1,16 +1,16 @@
 // Mothlight No.01 standalone: one straight line, drawn on this device and offline once installed.
-// Source (Solo, Duo or the camera), in brightness > Signal.Trails >
-// Signal.Colour, the only place colour is decided and the output. There is one feedback loop, one key and one Colour.
+// Source (Solo, Duo or the camera), in brightness > Mothlight.Trails >
+// Mothlight.Colour, the only place colour is decided and the output. There is one feedback loop, one key and one Colour.
 'use strict';
 (function () {
   const $ = id => document.getElementById(id);
   const ISF = '../isf/';
   // inside the NXLX Android or iOS app: the shell is already full screen, keeps the files and brings MIDI
-  const SHELL = /NXLXSignal\//.test(navigator.userAgent);
+  const SHELL = /NXLXMothlight\//.test(navigator.userAgent);
   const SOURCES = {
-    osc:     { name: 'Solo', button: 'Solo', file: 'signal-solo.fs', clock: 'rate', period: 100, pages: [
+    osc:     { name: 'Solo', button: 'Solo', file: 'mothlight-solo.fs', clock: 'rate', period: 100, pages: [
       { label: 'Osc', longs: ['gen.wave', 'gen.form', 'gen.shape'], floats: ['gen.rate', 'gen.bands', 'gen.angle', 'gen.bend'] }] },
-    modular: { name: 'Duo', button: 'Duo', file: 'signal-duo.fs', clock: null, pages: [
+    modular: { name: 'Duo', button: 'Duo', file: 'mothlight-duo.fs', clock: null, pages: [
       { label: 'Osc A', longs: ['gen.a_wave', 'gen.a_form'], floats: ['gen.a_rate', 'gen.a_freq', 'gen.a_angle'] },
       { label: 'Osc B', longs: ['gen.b_wave', 'gen.b_form'], floats: ['gen.b_rate', 'gen.b_freq', 'gen.b_angle'] },
       { label: 'Mix', longs: ['gen.mix_mode', 'gen.shape_kind'], floats: ['gen.mix_amt', 'gen.a_fm', 'gen.shape_size', 'gen.shape_soft'] }] },
@@ -22,7 +22,7 @@
     { label: 'LFO', longs: ['rig.lfo1_to', 'rig.lfo1_shape', 'rig.lfo2_to', 'rig.lfo2_shape'], floats: ['rig.lfo1_rate', 'rig.lfo1_depth', 'rig.lfo2_rate', 'rig.lfo2_depth'] }
   ];
   const DRIFT_PAGES = [
-    { label: 'Trails', longs: ['drift.keyinto', 'drift.edges'], floats: ['drift.feed', 'drift.key', 'drift.sharpen', 'rig.delay'] },
+    { label: 'Trails', longs: ['drift.keyinto', 'drift.edges', 'drift.delaystyle', 'drift.repeats'], floats: ['drift.feed', 'drift.key', 'drift.sharpen', 'drift.echotime', 'drift.echo'] },
     { label: 'Move', longs: ['drift.mirror'], pads: [
       { x: 'drift.turn', y: 'drift.zoom', yFirst: true, label: 'Zoom and turn', top: 'In', bottom: 'Out', left: 'Left', right: 'Right' },
       { x: 'drift.shiftx', y: 'drift.shifty', label: 'Slide', top: 'Up', bottom: 'Down', left: 'Left', right: 'Right' }] }
@@ -49,8 +49,7 @@
     { NAME: 'lfo' + n + '_rate', LABEL: n + ' Speed', TYPE: 'float', MIN: 0.01, MAX: 1, DEFAULT: 0.1 },
     { NAME: 'lfo' + n + '_depth', LABEL: n + ' Depth', TYPE: 'float', MIN: 0, MAX: 1, DEFAULT: 0.3 }];
   // settings of the app itself, kept and shown like a shader's
-  const RIG = { isf: { inputs: [{ NAME: 'delay', LABEL: 'Delay', TYPE: 'float', MIN: 1, MAX: 60, DEFAULT: 1, WHOLE: true },
-    { NAME: 'cycle', LABEL: 'Hue cycle', TYPE: 'float', MIN: -0.2, MAX: 0.2, DEFAULT: 0 }].concat(lfoSpec(1), lfoSpec(2)) } };
+  const RIG = { isf: { inputs: [{ NAME: 'cycle', LABEL: 'Hue cycle', TYPE: 'float', MIN: -0.2, MAX: 0.2, DEFAULT: 0 }].concat(lfoSpec(1), lfoSpec(2)) } };
   // Controls that have no effect in the current setting are dimmed, so nothing on a page is a dead end
   const greyPalette = () => S.colour.values.palette === 0 && S.source !== 'camera';
   const notColour = () => S.colour.values.mode !== 0;
@@ -68,6 +67,8 @@
   const lfoLoops = n => S.rig.values['lfo' + n + '_shape'] !== 0 && LFO_TO[S.rig.values['lfo' + n + '_to']].length > 4;
   const DEAD_OPTION = { 'rig.lfo1_to': lfoDead, 'rig.lfo2_to': lfoDead };
   const IDLE = {
+    'drift.echo': () => !S.drift.historySeconds,
+    'drift.echotime': () => !(S.drift.values.echo > 0) || !S.drift.historySeconds, 'drift.repeats': () => !(S.drift.values.echo > 0) || !S.drift.historySeconds,
     'gen.a_angle': () => S.gen.values.a_form === 1, 'gen.b_angle': () => S.gen.values.b_form === 1,
     'gen.shape_size': () => S.gen.values.shape_kind === 0, 'gen.shape_soft': () => S.gen.values.shape_kind === 0,
     'rig.lfo1_rate': () => lfoIdle(1), 'rig.lfo1_depth': () => lfoIdle(1) || lfoLoops(1), 'rig.lfo2_rate': () => lfoIdle(2), 'rig.lfo2_depth': () => lfoIdle(2) || lfoLoops(2),
@@ -77,15 +78,23 @@
     'colour.bright': () => S.colour.values.mode === 2, 'colour.matte': () => S.colour.values.mode !== 2, 'colour.soft': () => S.colour.values.mode !== 2
   };
   const DETAIL = [['Half', 0.5], ['Three quarters', 0.75], ['Full', 1]];
-  const STORE = 'signal-synth-v2';
+  const STORE = 'mothlight-v1';
 
   const store = {
     get(k, d) { try { const v = localStorage.getItem(STORE + ':' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
     set(k, v) { if (store.frozen) return; try { localStorage.setItem(STORE + ':' + k, JSON.stringify(v)); } catch (e) {} }
   };
 
-  function say(text) { const m = $('msg'); m.textContent = text; m.hidden = !text; }
-  $('msg').onclick = () => say('');
+  // a message: problems stay until closed; good news and tips (note) fade after 8 seconds
+  let msgTimer = 0;
+  function say(text, note) {
+    const m = $('msg');
+    if (text && note && !m.hidden && !m.classList.contains('note')) return;   // a problem stays until it is closed
+    clearTimeout(msgTimer);
+    $('msgText').textContent = text || ''; m.hidden = !text; m.classList.toggle('note', !!note);
+    if (text && note) msgTimer = setTimeout(() => { if ($('msgText').textContent === text) say(''); }, 8000);
+  }
+  $('msgClose').onclick = () => say('');
   // anything that slips through is shown, not lost
   window.addEventListener('error', e => say('Something went wrong: ' + e.message));
   window.addEventListener('unhandledrejection', e => say('Something went wrong: ' + (e.reason && e.reason.message || e.reason)));
@@ -93,14 +102,14 @@
   // ---- engine and chain --------------------------------------------------------------------------------------
   const canvas = $('out');
   let engine;
-  try { engine = SignalCore.Engine(canvas, { scale: 1 }); }
+  try { engine = MothlightCore.Engine(canvas, { scale: 1 }); }
   catch (e) { say('This device cannot draw the synth: ' + e.message); return; }
 
   const texts = {};
   async function isfText(file) {
-    // the download carries the shaders as a script too (isf/signal-isf.js, made by release/build.sh),
+    // the download carries the shaders as a script too (isf/mothlight-isf.js, made by release/build.sh),
     // so the app also opens from an unzipped folder, where a browser will not fetch files
-    const bundled = window.SIGNAL_ISF && window.SIGNAL_ISF[file];
+    const bundled = window.MOTHLIGHT_ISF && window.MOTHLIGHT_ISF[file];
     if (!texts[file] && typeof bundled === 'string') texts[file] = bundled;
     if (!texts[file]) {
       // a page opened from a file, not a web address, cannot read the shaders beside it
@@ -114,7 +123,7 @@
   }
 
   const S = {
-    source: 'osc', driftOn: true, detail: 0.5, rig: Object.assign({ values: SignalCore.defaults(RIG.isf) }, RIG),
+    source: 'osc', driftOn: true, detail: 0.5, rig: Object.assign({ values: MothlightCore.defaults(RIG.isf) }, RIG),
     gen: null, drift: null, colour: null, camStage: null, stages: {}, saved: {}, fade: null,
     frozen: false, faded: false, black: false, level: 1, perform: false, autoDetail: true
   };
@@ -123,12 +132,12 @@
   // Simple and Full stay built, so a switch fades straight away and each keeps its settings
   async function stageFor(key) {
     const src = SOURCES[key];
-    if (!genISF[key]) genISF[key] = SignalCore.parseISF(await isfText(src.file));
+    if (!genISF[key]) genISF[key] = MothlightCore.parseISF(await isfText(src.file));
     if (!S.stages[key]) {
       S.stages[key] = engine.Stage(genISF[key], { clockInput: src.clock, clockPeriod: src.period });
       Object.assign(S.stages[key].values, S.saved[key] || {});
       checked(S.stages[key]);
-      if (key === 'osc') S.stages[key].values.spread = 0;   // colour belongs to Signal.Colour here
+      if (key === 'osc') S.stages[key].values.spread = 0;   // colour belongs to Mothlight.Colour here
     }
     return S.stages[key];
   }
@@ -230,11 +239,11 @@
     // leaving the camera turns it off, once a fade from it has finished
     if (key !== 'camera' && !S.fade) stopCamera();
     if (!S.drift) {
-      driftISF = driftISF || SignalCore.parseISF(await isfText('signal-trails.fs'));
-      S.drift = engine.Stage(driftISF, { ring: 'drift' });
+      driftISF = driftISF || MothlightCore.parseISF(await isfText('mothlight-trails.fs'));
+      S.drift = engine.Stage(driftISF, { history: 'drift' });
     }
     if (!S.colour) {
-      colourISF = colourISF || SignalCore.parseISF(await isfText('signal-colour.fs'));
+      colourISF = colourISF || MothlightCore.parseISF(await isfText('mothlight-colour.fs'));
       S.colour = engine.Stage(colourISF);
     }
     if (keepValues && keepValues.drift) Object.assign(S.drift.values, keepValues.drift);
@@ -242,7 +251,8 @@
     checked(S.rig); checked(S.drift); checked(S.colour);
     if (S.gen.isf) checked(S.gen);
     S.drift.values.hueturn = 0;   // and so does this
-    // Signal.Trails carries on through a source change, so its trails fade across too
+    showDelay();
+    // Mothlight.Trails carries on through a source change, so its trails fade across too
     if (S.driftOn) {
       if (engine.chain.indexOf(S.drift) < 0) S.drift.alloc();
       chain.push(S.drift);
@@ -279,6 +289,7 @@
       if (S.gen.isf) checked(S.gen);
       buildPage(); save();
     }
+    showDelay();
   }
 
   // ---- controls ----------------------------------------------------------------------------------------------
@@ -311,7 +322,11 @@
     const c = { id, spec, kind: spec.TYPE === 'long' ? 'long' : 'float', get: () => +stage.values[name] };
     const changed = () => { refresh(); save(); };
     if (c.kind === 'long') {
-      c.set = v => { stage.values[name] = v; changed(); };
+      c.set = v => {
+        stage.values[name] = v;
+        if (name === 'delaystyle') { showDelay(); queueMicrotask(buildPage); }   // Repeats belongs to Echo only
+        changed();
+      };
       c.setNorm = n => c.set(spec.VALUES[Math.min(spec.VALUES.length - 1, Math.floor(n * spec.VALUES.length))]);
       c.press = () => c.set(spec.VALUES[(spec.VALUES.indexOf(c.get()) + 1) % spec.VALUES.length]);
     } else {
@@ -320,7 +335,7 @@
       c.set = v => {
         v = Math.min(spec.MAX, Math.max(spec.MIN, v));
         stage.values[name] = spec.WHOLE ? Math.round(v) : v;
-        if (name === 'delay') showDelay();
+        if (name === 'echo' || name === 'echotime') showDelay();
         changed();
       };
       c.setNorm = n => c.set(curve.value(n));
@@ -329,11 +344,13 @@
     }
     return all[name] = c;
   }
-  // the chip shows the delay really heard: a large drawing keeps fewer frames than the fader can ask for
+  // the chip shows Echo or Smear and its time, only while Amount is up
   function showDelay() {
-    const ring = S.drift && S.drift.ringSize;
-    $('chipDelay').textContent = 'Delay ' + (ring ? Math.min(S.rig.values.delay, ring) : S.rig.values.delay);
+    const d = S.drift && S.drift.values, chip = $('chipDelay');
+    chip.hidden = !(d && d.echo > 0 && S.driftOn && S.drift.historySeconds);
+    if (d) chip.textContent = (Math.round(d.delaystyle) === 1 ? 'Smear ' : 'Echo ') + (+d.echotime).toFixed(+d.echotime < 1 ? 2 : 1) + ' s';
   }
+
   function fmt(c) {
     const v = c.get(), span = c.spec.MAX - c.spec.MIN;
     return c.spec.WHOLE ? String(v) : span <= 0.2 ? v.toFixed(3) : span <= 3 ? v.toFixed(2) : v.toFixed(1);
@@ -509,7 +526,7 @@
       page.append(box);
       return;
     }
-    (p.longs || []).forEach(id => { const c = makeChoice(id); if (c) box.append(c); });
+    (p.longs || []).filter(id => id !== 'drift.repeats' || Math.round(S.drift.values.delaystyle) === 0).forEach(id => { const c = makeChoice(id); if (c) box.append(c); });
     if (p.special === 'output') {
       const detail = makeLocalChoice('Detail', DETAIL, () => S.detail, v => { S.detail = v; slow = 0; engine.setScale(v); buildPage(); save(); });
       detail.classList.toggle('idle', videoOut.on);   // Video out holds its own size, and the setting comes back after
@@ -527,7 +544,7 @@
       if (p.special === 'output') {   // beside the faders, so the page stays the same height with Video out on
         const info = document.createElement('p'); info.className = 'num-small'; info.id = 'renderInfo';
         const gi = engine.info(), sz = engine.size;
-        info.textContent = 'Drawing ' + sz[0] + ' x ' + sz[1] + ' on ' + gi.gpu + ', WebGL ' + gi.webgl + ', ' + gi.precision + ' precision. Delay up to ' + (S.drift ? S.drift.ringSize : '-') + ' frames.';
+        info.textContent = 'Drawing ' + sz[0] + ' x ' + sz[1] + ' on ' + gi.gpu + ', WebGL ' + gi.webgl + ', ' + gi.precision + ' precision. ' + (S.drift && S.drift.historySeconds ? 'Echo and Smear keep the last ' + S.drift.historySeconds.toFixed(0) + ' seconds.' : 'Echo and Smear need WebGL 2.');
         faders.append(info);
       }
       page.append(faders);
@@ -646,7 +663,7 @@
       roll('drift.edges');
       const lights = S.gen.values.wave !== 3 && chance(0.25);   // keying into the lights swaps them for fading trails, so only the very brightest go
       Object.assign(d, { feed: between(0.86, 0.98), key: lights ? between(0.05, 0.15) : between(0.15, 0.4), keyinto: lights ? 1 : 0, sharpen: chance(0.5) ? 0 : between(0.1, 0.6) });
-      r.delay = chance(0.5) ? 1 : Math.round(between(2, 20));
+      Object.assign(d, { echo: chance(0.5) ? 0 : between(0.4, 0.9), echotime: between(0.2, 1), repeats: 1 + Math.floor(Math.random() * 3) });
       showDelay();
     }
     if (randomOn('transform')) {
@@ -673,13 +690,13 @@
   }
   // Back to a known, readable picture. Presets, MIDI, the source and the output settings stay.
   function resetPatch() {
-    const base = stage => Object.assign(stage.values, SignalCore.defaults(stage.isf));
+    const base = stage => Object.assign(stage.values, MothlightCore.defaults(stage.isf));
     const keep = { mode: S.colour.values.mode, invert: S.colour.values.invert, matte: S.colour.values.matte, soft: S.colour.values.soft };
     for (const k in S.stages) base(S.stages[k]);
     if (S.stages.osc) S.stages.osc.values.spread = 0;
     base(S.drift); S.drift.values.hueturn = 0;
     base(S.colour); Object.assign(S.colour.values, keep);
-    Object.assign(S.rig.values, SignalCore.defaults(RIG.isf));
+    Object.assign(S.rig.values, MothlightCore.defaults(RIG.isf));
     showDelay(); phase.cycle = 0;
     engine.clear(); buildPage(); save();
   }
@@ -734,7 +751,7 @@
       if (!learning) return;
       if (ok === 'blocked') say('MIDI is blocked for this page. Allow it in the browser\'s site settings, then tap MIDI learn again.');
       else if (!ok) say('MIDI is not available here. Tap MIDI learn again to finish.');
-      else if (!ports) say('No MIDI device is connected yet. Tap MIDI learn again to finish.');
+      else if (!ports) say('No MIDI device is connected yet. Tap MIDI learn again to finish.', true);
     });
   }
   $('learn').addEventListener('click', () => setLearning(!learning));
@@ -785,7 +802,7 @@
   if (!SHELL && navigator.requestMIDIAccess && navigator.permissions)
     navigator.permissions.query({ name: 'midi' }).then(s => s.state === 'granted', () => false).then(kept => {
       if (kept) connectMidi();
-      else if (Object.keys(midiMap).length) say('To use your MIDI controller, tap MIDI learn once to reconnect it.');
+      else if (Object.keys(midiMap).length) say('To use your MIDI controller, tap MIDI learn once to reconnect it.', true);
     });
 
   // ---- video out: the shell serves the picture on the network for a mixer to pull --------------------------------
@@ -877,7 +894,7 @@
     } else {
       // Solo: Osc A is always lines. With Lines chosen, Osc B turns too and bends A, by up to Bend's top of 0.6.
       // Speed takes up to 0.98 of the rate, and the shader's own slow drift of the angle takes up to half of what is
-      // left (the same sums as in signal-solo.fs)
+      // left (the same sums as in mothlight-solo.fs)
       const hz = Math.min(g.rate, 3), perRad = FAR * (g.bands + (g.form === 0 ? 0.6 * Math.PI * (g.bands * 0.66 + 1) : 0));
       perTurn = 6.2831853 * perRad;
       left = 3 - 0.98 * hz;
@@ -890,7 +907,6 @@
     // both LFOs may be on Angle: they share the limit
     const onAngle = [1, 2].filter(n => LFO_TO[v['lfo' + n + '_to']][0] === 'Angle').length;
     const angleMax = onAngle ? angleSpeedLimit() / onAngle : Infinity;
-    S.drift.delay = v.delay;
     for (const stage of gens.concat(S.drift, S.colour)) stage.mods = {};
     const full = S.stages.modular;
     if (full) {
@@ -953,7 +969,7 @@
       slow = fps < 40 && fps >= 12 && !document.hidden ? slow + 1 : 0;
       if (slow >= 3 && S.detail > 0.5 && S.autoDetail && !videoOut.on) {
         S.detail = S.detail > 0.75 ? 0.75 : 0.5; engine.setScale(S.detail); slow = 0; save();
-        if (!S.perform) say('Detail lowered to ' + (S.detail === 0.75 ? 'three quarters' : 'half') + ' to keep the picture smooth. Change it on the Output page.');
+        if (!S.perform) say('Detail lowered to ' + (S.detail === 0.75 ? 'three quarters' : 'half') + ' to keep the picture smooth. Change it on the Output page.', true);
         if (showing('output')) buildPage();
       }
     }
@@ -993,7 +1009,7 @@
     $('help').hidden = !on;
     if (on) { store.set('helpSeen', true); $('helpBody').scrollTop = 0; $('helpBody').focus({ preventScroll: true }); cues.help(); } else $('helpOpen').focus();
   }
-  $('helpVersion').textContent = self.SIGNAL_VERSION || '';
+  $('helpVersion').textContent = self.MOTHLIGHT_VERSION || '';
   $('helpOpen').onclick = () => setHelp(true);
   $('helpClose').onclick = () => setHelp(false);
   $('help').addEventListener('keydown', e => {
@@ -1010,7 +1026,7 @@
   // ---- updates and backups, the way Phase Ten Scorekeeper does them -------------------------------------------
   // The installed app changes only when Update now is tapped (see sw.js). A backup is everything this app stores in
   // this browser: settings, presets, the MIDI map. A safety copy is kept before an update or a restore replaces it.
-  const VERSION = self.SIGNAL_VERSION || '0';
+  const VERSION = self.MOTHLIGHT_VERSION || '0';
   const newer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
     for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
   const online = !SHELL && /^https?:$/.test(location.protocol);
@@ -1140,7 +1156,7 @@
   // ---- install as an app (home-screen icon, opens full screen) ------------------------------------------------
   let installEvt = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('install').hidden = SHELL || !!store.get('installed', false); });
-  window.addEventListener('appinstalled', () => { installEvt = null; $('install').hidden = true; say('Mothlight No.01 is installed. Open it from its icon, online or offline.'); });
+  window.addEventListener('appinstalled', () => { installEvt = null; $('install').hidden = true; say('Mothlight No.01 is installed. Open it from its icon, online or offline.', true); });
   $('install').onclick = async () => {
     if (!installEvt) return;
     installEvt.prompt();
@@ -1166,14 +1182,14 @@
       if (!saved || e.missing) { say(failed(e)); return; }
       store.set('state', null);
       S.source = 'osc'; S.driftOn = true; S.saved = {}; S.stages = {}; S.gen = null; S.fade = null;
-      Object.assign(S.rig.values, SignalCore.defaults(RIG.isf));
+      Object.assign(S.rig.values, MothlightCore.defaults(RIG.isf));
       try { await buildChain(); say('The saved settings did not load, so Mothlight No.01 started fresh. Presets are kept.'); }
       catch (e2) { say(failed(e2)); return; }
     }
     showDelay();
     buildMems();
     if (window.nxOut && store.get('videoOut', false)) setVideoOut(true);
-    window.signalSynth = { S, engine, controls, camera, videoOut, param, modulate, randomise, midi: () => midiMap };
+    window.mothlight = { S, engine, controls, camera, videoOut, param, modulate, randomise, midi: () => midiMap };
     requestAnimationFrame(loop);
     setTimeout(() => { stageFor('osc').then(() => stageFor('modular')).catch(() => {}); }, 1000);
   })();

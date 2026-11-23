@@ -1,6 +1,6 @@
 // Mothlight No.01 core: an ISF 2 runner for WebGL. A chain of stages (a generator or the camera, then effects),
 // each with its own passes and persistent buffers, plus the two NXLX extensions:
-//   - a frame ring: a persistent buffer can be read from N frames ago (the framebuffer delay)
+//   - a history: a light, low-resolution copy of a persistent buffer, kept for a few seconds (Echo and Smear)
 //   - a rate-true clock: TIME is kept so that TIME * rate never jumps when the rate input moves
 // No DOM beyond the canvas it is given.
 'use strict';
@@ -75,9 +75,10 @@
     function clearTarget(t) { gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); }
 
     let w = 0, h = 0, scale = opts.scale || 1, frame = 0, fixed = null;
-    const ringBytes = opts.ringBytes || 48 * 1024 * 1024;
+    const histBytes = opts.histBytes || 44 * 1024 * 1024;
+    const canKeep = typeof gl.blitFramebuffer === 'function';   // the history needs WebGL 2
 
-    // A stage: one ISF file, its program, its buffers. A persistent target can have a ring of past frames.
+    // A stage: one ISF file, its program, its buffers. A persistent target can keep a history of past frames.
     function Stage(isf, sopts) {
       sopts = sopts || {};
       const targets = isf.passes.map(p => p.TARGET).filter((t, n, a) => t && a.indexOf(t) === n);
@@ -92,30 +93,30 @@
         '#define IMG_SIZE(s) RENDERSIZE']
         .concat(isf.inputs.map(i => 'uniform ' + GLSL_TYPE[i.TYPE] + ' ' + i.NAME + ';'))
         .concat(targets.map(t => 'uniform sampler2D ' + t + ';'))
+        .concat(sopts.history && canKeep ? ['#define NXLX_HISTORY 1', 'uniform sampler2D pastA; uniform sampler2D pastB; uniform sampler2D pastC;'] : [])
         .join('\n');
       const prog = program(head + '\n' + isf.body);
-      const ringOf = sopts.ring || null;          // name of a persistent target to keep a ring for
+      const histOf = canKeep && sopts.history || null;   // name of a persistent target to keep a history of
       // a clock that wraps at a whole number of every cycle in the shader never loses precision on a long run
       const clockPeriod = sopts.clockPeriod || Infinity;
-      let bufs = {}, ring = [], head_ = 0, out = null;
+      let bufs = {}, hist = [], stamps = [], hhead = 0, filled = 0, lastKept = -1, hw = 0, hh = 0, out = null;
 
       const st = {
-        isf, values: defaults(isf), mods: {}, uniforms: {}, delay: 1, ringSize: 0, clockInput: sopts.clockInput || null,
+        isf, values: defaults(isf), mods: {}, uniforms: {}, historySeconds: 0, clockInput: sopts.clockInput || null,
         clock: { t: 0, scaled: 0 },
         alloc() {
           for (const k in bufs) bufs[k].forEach(freeTarget);
-          ring.forEach(freeTarget); if (out) freeTarget(out);
-          bufs = {}; ring = []; head_ = 0;
-          for (const t of targets) {
-            if (t === ringOf) {
-              const n = Math.max(2, Math.min(61, Math.floor(ringBytes / (w * h * 4))));
-              for (let k = 0; k < n; k++) ring.push(makeTarget(w, h));
-              st.ringSize = n - 1;
-            } else bufs[t] = [makeTarget(w, h), makeTarget(w, h)];
+          hist.forEach(freeTarget); if (out) freeTarget(out);
+          bufs = {}; hist = []; stamps = []; hhead = 0; filled = 0; lastKept = -1;
+          for (const t of targets) bufs[t] = [makeTarget(w, h), makeTarget(w, h)];
+          if (histOf) {   // at most 256 pixels wide: soft copies are all Echo and Smear need, and they fit seconds in memory
+            hw = Math.min(w, 256); hh = Math.max(1, Math.round(h * hw / w));
+            const n = Math.max(2, Math.min(300, Math.floor(histBytes / (hw * hh * 4))));   // 300 at 60 a second: 5 seconds
+            for (let k = 0; k < n; k++) hist.push(makeTarget(hw, hh));
           }
           out = makeTarget(w, h);
         },
-        clear() { for (const k in bufs) bufs[k].forEach(clearTarget); ring.forEach(clearTarget); clearTarget(out); },
+        clear() { for (const k in bufs) bufs[k].forEach(clearTarget); hist.forEach(clearTarget); filled = 0; lastKept = -1; clearTarget(out); },
         get out() { return out; },
         // time: seconds; dt: seconds since the last frame; input: texture of the stage before, or null
         render(time, dt, input, frozen) {
@@ -143,29 +144,46 @@
           if (u.TIMEDELTA) gl.uniform1f(u.TIMEDELTA, dt);
           if (u.RENDERSIZE) gl.uniform2f(u.RENDERSIZE, w, h);
           if (u.FRAMEINDEX) gl.uniform1i(u.FRAMEINDEX, frame);
+          const read = frame % 2, write = 1 - read;
+          st.historySeconds = hist.length / 60;
+          // the kept picture nearest to s seconds ago (the oldest kept, while the history fills)
+          const back = s => {
+            const have = Math.min(filled, hist.length), want = time - s;
+            let k = 0;
+            while (k < have - 1 && stamps[(hhead - 1 - k + hist.length * 2) % hist.length] > want) k++;
+            return hist[(hhead - 1 - k + hist.length * 2) % hist.length];
+          };
+          const ET = +st.values.echotime || 0, smear = Math.round(+st.values.delaystyle || 0) === 1;
+          const taps = !hist.length || !filled ? null : smear ? { pastA: back(ET / 3), pastB: back(ET * 2 / 3), pastC: back(ET) }
+            : { pastA: back(ET), pastB: back(ET * 2), pastC: back(ET * 3) };
           let unit = 0;
           for (const name of images) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, input ? input.tex : out.tex); gl.uniform1i(u[name], unit++); }
-          const read = frame % 2, write = 1 - read;
-          const n = ring.length;
-          const ringWrite = n ? ring[(head_ + 1) % n] : null;
-          const ringRead = n ? ring[(head_ + 1 - Math.max(1, Math.min(st.delay, n - 1)) + n * 2) % n] : null;
+          if (histOf) for (const name of ['pastA', 'pastB', 'pastC']) {
+            if (!u[name]) continue;
+            gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, taps ? taps[name].tex : hist.length ? hist[0].tex : null); gl.uniform1i(u[name], unit++);   // never the picture being drawn: that is a feedback loop
+          }
           isf.passes.forEach((pass, k) => {
             targets.forEach((t, j) => {
               gl.activeTexture(gl.TEXTURE0 + unit + j);
               const written = isf.passes.slice(0, k).some(pp => pp.TARGET === t);
-              const tex = t === ringOf ? (written ? ringWrite : ringRead) : bufs[t][written ? write : read];
+              const tex = bufs[t][written ? write : read];
               gl.bindTexture(gl.TEXTURE_2D, tex.tex);
               gl.uniform1i(u[t], unit + j);
             });
-            const dst = pass.TARGET ? (pass.TARGET === ringOf ? ringWrite : bufs[pass.TARGET][write]) : out;
+            const dst = pass.TARGET ? bufs[pass.TARGET][write] : out;
             gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fbo); gl.viewport(0, 0, w, h);
             if (u.PASSINDEX) gl.uniform1i(u.PASSINDEX, k);
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
           });
-          if (n) head_ = (head_ + 1) % n;
+          if (histOf && hist.length && !frozen && (lastKept < 0 || time - lastKept >= 1 / 61 || time < lastKept)) {   // a small copy, at most 60 a second
+            gl.bindFramebuffer(gl.READ_FRAMEBUFFER, bufs[histOf][write].fbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, hist[hhead].fbo);
+            gl.blitFramebuffer(0, 0, w, h, 0, 0, hw, hh, gl.COLOR_BUFFER_BIT, gl.LINEAR);
+            gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+            stamps[hhead] = time; lastKept = time; hhead = (hhead + 1) % hist.length; filled++;
+          }
           return out;
         },
-        free() { for (const k in bufs) bufs[k].forEach(freeTarget); ring.forEach(freeTarget); if (out) freeTarget(out); gl.deleteProgram(prog.p); }
+        free() { for (const k in bufs) bufs[k].forEach(freeTarget); hist.forEach(freeTarget); if (out) freeTarget(out); gl.deleteProgram(prog.p); }
       };
       if (w) st.alloc();
       return st;
@@ -228,7 +246,7 @@
     let chain = [];
     // what was shown has just been freed: a read before the next frame must not touch it
     function allocChain() { shown = null; chain.forEach(s => s.alloc()); }
-    const MAX_SIDE = 1920;   // keeps the Delay frames in memory on a large screen
+    const MAX_SIDE = 1920;   // a large screen still draws at a size the device can keep up with
     function resize(force) {
       // the drawing is always 16:9, sized by the device's screen and the chosen detail. The window and the panel have
       // no say, so resizing leaves the picture and the trails alone and the page only shows it. A fixed size wins
@@ -291,5 +309,5 @@
     };
   }
 
-  root.SignalCore = { parseISF, defaults, Engine };
+  root.MothlightCore = { parseISF, defaults, Engine };
 })(window);

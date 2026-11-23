@@ -48,7 +48,7 @@ Best held sideways (landscape).
 The tabs run left to right in the order the signal flows:
   Source     Solo, Duo or the camera, Trails on or off, what Random changes
   Osc        the pattern, in brightness only (Duo has two, plus Mix)
-  Trails     the feedback loop: length, key, sharpen, delay, edges
+  Trails     the feedback loop: length, key, sharpen, edges, Echo or Smear
   Move       mirror, zoom and turn, slide (needs Trails on)
   Colour     the one place colour is decided
   LFO        two slow movers you can send to zoom, turn, bend, angle,
@@ -132,7 +132,7 @@ WHAT IS IN THIS FOLDER
 Open Mothlight No.01.html   opens the app
 app/                     the app itself
 isf/                     the four shaders, written as ISF files (not yet
-                         tried in other ISF software; the frame delay
+                         tried in other ISF software; Echo and Smear
                          only works inside Mothlight No.01)
 LICENSE.txt              the licence, and which licence covers which files
 licences/                the full licence texts

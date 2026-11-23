@@ -30,8 +30,8 @@ WHICH LICENCE COVERS WHICH FILES
   the icons and "Open Mothlight No.01.html": PolyForm Noncommercial 1.0.0,
   below, with the permission above.
 
-- The shaders (isf/signal-solo.fs, isf/signal-duo.fs,
-  isf/signal-trails.fs, isf/signal-colour.fs, and isf/signal-isf.js,
+- The shaders (isf/mothlight-solo.fs, isf/mothlight-duo.fs,
+  isf/mothlight-trails.fs, isf/mothlight-colour.fs, and isf/mothlight-isf.js,
   which holds the same shaders as a script): Apache License 2.0, as each
   shader file says in its SPDX line. The full text is in
   licences/Apache-2.0-shaders.txt.

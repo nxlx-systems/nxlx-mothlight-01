@@ -32,7 +32,7 @@
 | Feature | What it does |
 |---|---|
 | **Two pattern engines** | Solo (two oscillators, one bending the other) or Duo (two full oscillators and a mix). Or use your camera as the source. |
-| **Feedback trails** | Length, key, sharpen, edges and a frame delay, so patterns smear, echo and grow. |
+| **Feedback trails** | Length, key, sharpen and edges, plus Echo (copies of the picture from up to a few seconds ago) or Smear (a long exposure), so patterns trail, echo and grow. |
 | **Move** | Mirror, zoom, turn and slide, all working on the trails as they build. |
 | **Colour, last** | Colour is decided after the feedback, so any pattern, the camera or the trails can wear any colour. |
 | **Two LFOs** | Slow movers you can send to zoom, turn, bend, angle, hue or key, so the picture keeps moving on its own. |
@@ -69,9 +69,9 @@ It runs in any up-to-date web browser with WebGL 2. Installing it adds an icon a
 - **Colour:** decides the colours once, near the end.
 - **LFO:** the two LFOs reach back into every stage.
 
-**Ideas borrowed from the instruments we love.** The oscillators, keying and modulation follow the spirit of video synths like Lumen and Vsynth. The feedback stage takes the idea behind processors like VSERPI and Waaave Pool: a picture fed back with zoom, turn and shift, plus a delay of past frames. Those instruments are other people's work, named here only as inspiration; Mothlight No.01 is not connected with them.
+**Ideas borrowed from the instruments we love.** The oscillators, keying and modulation follow the spirit of video synths like Lumen and Vsynth. The feedback stage takes the idea behind processors like VSERPI and Waaave Pool: a picture fed back with zoom, turn and shift, plus echoes of past frames. Those instruments are other people's work, named here only as inspiration; Mothlight No.01 is not connected with them.
 
-**Open shader files.** Each stage is an ISF shader, a format many VJ tools read. The four files are in [`isf/`](isf/). They have not yet been tried in other ISF software, and the frame delay only works inside Mothlight No.01.
+**Open shader files.** Each stage is an ISF shader, a format many VJ tools read. The four files are in [`isf/`](isf/). They have not yet been tried in other ISF software, and Echo and Smear only work inside Mothlight No.01.
 
 **Why the name.** Moths are drawn to a projector beam the way a crowd is drawn to a good show. It is also a nod to Stan Brakhage's 1963 film *Mothlight*, made by pressing moth wings and leaves straight onto film. No.01 is a model number, like hardware.
 

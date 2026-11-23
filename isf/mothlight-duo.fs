@@ -1,5 +1,5 @@
 /*{
-  "DESCRIPTION": "Signal.Duo: two matching video oscillators, a mixer with bend, and a shape window, in brightness only. Trails come from Signal.Trails and colour from Signal.Colour. Mothlight No.01.",
+  "DESCRIPTION": "Mothlight.Duo: two matching video oscillators, a mixer with bend, and a shape window, in brightness only. Trails come from Mothlight.Trails and colour from Mothlight.Colour. Mothlight No.01.",
   "CREDIT": "NXLX.Systems and contributors",
   "ISFVSN": "2",
   "CATEGORIES": ["Generator", "NXLX"],

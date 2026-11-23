@@ -1,6 +1,6 @@
 /*{
     "ISFVSN": "2",
-    "DESCRIPTION": "Signal.Colour, the last stage: colours the picture by brightness, sets its brightness and contrast, and can send out plain mono or a hard matte for masking.",
+    "DESCRIPTION": "Mothlight.Colour, the last stage: colours the picture by brightness, sets its brightness and contrast, and can send out plain mono or a hard matte for masking.",
     "CREDIT": "NXLX.Systems and contributors",
     "CATEGORIES": [
         "Filter",

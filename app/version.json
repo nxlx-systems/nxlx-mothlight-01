@@ -1,4 +1,4 @@
 {
- "version": "1.0.1",
- "notes": "Repairs a copy that could not start after the 1.0 update, and makes every update fetch one whole version."
+ "version": "1.0.2",
+ "notes": "Delay is now Echo or Smear, set in seconds, and smooth. Messages close or fade on their own, faders are hand-sized, and every part carries the Mothlight name."
 }

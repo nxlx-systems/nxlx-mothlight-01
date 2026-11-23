@@ -1,6 +1,6 @@
 /*{
     "ISFVSN": "2",
-    "DESCRIPTION": "Signal.Solo: two video oscillators, the second bending the first, in a shape window, with optional colour by brightness; every pixel changes at most 3 times a second.",
+    "DESCRIPTION": "Mothlight.Solo: two video oscillators, the second bending the first, in a shape window, with optional colour by brightness; every pixel changes at most 3 times a second.",
     "CREDIT": "NXLX.Systems and contributors",
     "CATEGORIES": [
         "Generator",

@@ -1,12 +1,12 @@
 /*{
     "ISFVSN": "2",
-    "DESCRIPTION": "Signal.Trails, a feedback processor: the last picture is zoomed, turned and slid, then keyed under the playing one as trails.",
+    "DESCRIPTION": "Mothlight.Trails, a feedback processor: the last picture is zoomed, turned and slid, then keyed under the playing one as trails.",
     "CREDIT": "NXLX.Systems and contributors",
     "CATEGORIES": [
         "Filter",
         "Feedback"
     ],
-    "COST": "medium: six texture reads and one hue turn a pixel in the first pass, one read in the second, plus the frame ring",
+    "COST": "medium: six texture reads and one hue turn a pixel in the first pass, one read in the second, plus up to three history reads for Echo and Smear",
     "INPUTS": [
         {
             "NAME": "inputImage",
@@ -69,6 +69,38 @@
             "DEFAULT": 0.0
         },
         {
+            "NAME": "delaystyle",
+            "LABEL": "Delay",
+            "TYPE": "long",
+            "VALUES": [0, 1],
+            "LABELS": ["Echo", "Smear"],
+            "DEFAULT": 0
+        },
+        {
+            "NAME": "echotime",
+            "LABEL": "Time",
+            "TYPE": "float",
+            "MIN": 0.05,
+            "MAX": 1.5,
+            "DEFAULT": 0.5
+        },
+        {
+            "NAME": "repeats",
+            "LABEL": "Repeats",
+            "TYPE": "long",
+            "VALUES": [1, 2, 3],
+            "LABELS": ["1", "2", "3"],
+            "DEFAULT": 2
+        },
+        {
+            "NAME": "echo",
+            "LABEL": "Amount",
+            "TYPE": "float",
+            "MIN": 0.0,
+            "MAX": 1.0,
+            "DEFAULT": 0.0
+        },
+        {
             "NAME": "edges",
             "LABEL": "Edges",
             "TYPE": "long",
@@ -113,8 +145,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // An original shader written for Mothlight No.01 and nxlx.mastercontrol.
 
-// The first pass draws the drift buffer: the last picture (in the NXLX runner, the one from a chosen number of frames
-// ago), moved, with the playing picture keyed over it. The second pass shows it.
+// The first pass draws the drift buffer: the last picture, moved, with the playing picture keyed over it. The second
+// pass shows it. The NXLX web runner defines NXLX_HISTORY and adds pastA to pastC, pictures from a few seconds of
+// history, for Echo and Smear. Other ISF hosts (Mastercontrol's node included) skip that code, and Amount does nothing.
 // Nothing here inverts brightness or hue: in a loop that would flip every frame.
 
 vec2 edge(vec2 q) {
@@ -138,7 +171,21 @@ vec3 hueDrift(vec3 c) {
 void main() {
     vec2 uv = isf_FragNormCoord;
     if (PASSINDEX == 1) {
-        gl_FragColor = IMG_NORM_PIXEL(drift, uv);
+        vec3 cur = IMG_NORM_PIXEL(drift, uv).rgb;
+#ifdef NXLX_HISTORY
+        if (delaystyle == 0 && echo > 0.0) {
+            // Echo: copies of the picture from Time, twice Time and three times Time ago, each fainter, laid over the picture
+            vec3 ghost = IMG_NORM_PIXEL(pastA, uv).rgb * echo;
+            if (repeats >= 2) {
+                ghost = max(ghost, IMG_NORM_PIXEL(pastB, uv).rgb * echo * 0.6);
+            }
+            if (repeats >= 3) {
+                ghost = max(ghost, IMG_NORM_PIXEL(pastC, uv).rgb * echo * 0.36);
+            }
+            cur = max(cur, ghost);   // lighten: each copy keeps its shape instead of washing the picture out
+        }
+#endif
+        gl_FragColor = vec4(cur, 1.0);
         return;
     }
     // folding here, in the first pass, mirrors the playing picture and the trails together, and the loop stays symmetric
@@ -156,6 +203,13 @@ void main() {
     q = edge(q);
 
     vec3 back = IMG_NORM_PIXEL(drift, q).rgb;
+#ifdef NXLX_HISTORY
+    if (delaystyle == 1 && echo > 0.0) {
+        // Smear: frames from a third of Time, two thirds and all of Time ago, blended into the trails like a long exposure
+        vec3 old = (IMG_NORM_PIXEL(pastA, q).rgb + IMG_NORM_PIXEL(pastB, q).rgb + IMG_NORM_PIXEL(pastC, q).rgb) / 3.0;
+        back = mix(back, max(back, old), echo);
+    }
+#endif
     vec2 px = 1.0 / RENDERSIZE;
     vec3 around = IMG_NORM_PIXEL(drift, edge(q + vec2(px.x, 0.0))).rgb + IMG_NORM_PIXEL(drift, edge(q - vec2(px.x, 0.0))).rgb
                 + IMG_NORM_PIXEL(drift, edge(q + vec2(0.0, px.y))).rgb + IMG_NORM_PIXEL(drift, edge(q - vec2(0.0, px.y))).rgb;
