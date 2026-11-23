@@ -55,22 +55,19 @@ main{display:grid;grid-template-columns:minmax(0,46fr) minmax(0,54fr);gap:var(--
 .hold{position:absolute;left:0;bottom:0;height:var(--stroke-mark);width:0;background:currentColor}
 
 /* Module pages */
-/* the tabs slide sideways whenever they do not fit, at any width */
-.tabs{display:flex;justify-content:space-between;flex-shrink:0;min-height:var(--hit);border-bottom:var(--stroke-hair) solid var(--line);overflow-x:auto;overflow-y:hidden;touch-action:pan-x;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
+/* the tabs wrap onto a second row when they do not fit: all of them always in view, nothing slides */
+.tabs{display:flex;flex-wrap:wrap;justify-content:space-between;flex-shrink:0;min-height:var(--hit);border-bottom:var(--stroke-hair) solid var(--line)}
 .tab{flex:none;min-height:var(--hit);padding:0 var(--s2);white-space:nowrap;background:transparent;border:0;border-bottom:3px solid transparent;
   font:600 14px/18px var(--font-sans);color:var(--text-2)}
 .tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--area)}
 .page{flex:1;min-height:0;display:flex;flex-direction:column;gap:var(--s3)}
-.tabrow{display:flex;flex-shrink:0;min-width:0}
-.tabrow .tabs{flex:1;min-width:0}
-/* More: a scrolling area that does not show everything says so, in words, in its own row (it never covers a control) */
-.more{display:flex;align-items:center;justify-content:center;gap:var(--s2);flex-shrink:0;width:100%;min-height:var(--hit);padding:0 var(--s3);
-  background:var(--raised);color:var(--text);border:var(--stroke-hair) solid var(--edge);border-radius:var(--radius);font:600 14px/18px var(--font-sans)}
-.more:active{background:var(--pressed)}
-#pageMore{margin-top:calc(var(--s2) * -1)}   /* sits close under the page it belongs to */
-.more-x{width:auto;min-width:var(--hit);padding:0 var(--s2);background:var(--ground);border:0;border-left:var(--stroke-hair) solid var(--edge);
-  border-bottom:var(--stroke-hair) solid var(--line);border-radius:0}
+/* Scroll cues: an area that does not show everything says so without moving anything for you. A thin track at its
+   edge shows where you are and how much there is, and a quiet line under it says "Scroll for more" until the end. */
+.scrollbox{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}
+.scrollbox.scrolls>.page{padding-right:var(--s4)}
+.scrolltrack{position:absolute;top:var(--s1);bottom:var(--s1);right:0;width:4px;background:var(--line);border-radius:var(--radius-inner);pointer-events:none}
+.scrolltrack>div{width:100%;height:24px;background:var(--text-3);border-radius:var(--radius-inner)}
+.morenote{flex-shrink:0;margin:calc(var(--s2) * -1) 0 0;text-align:center;font:600 12px/16px var(--font-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
 .choices{display:flex;flex-direction:column;gap:var(--s2)}
 .choice{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:var(--s2)}
 .seg{display:flex;flex-wrap:wrap;gap:2px;background:var(--line);border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);overflow:hidden}
@@ -85,20 +82,24 @@ main{display:grid;grid-template-columns:minmax(0,46fr) minmax(0,54fr);gap:var(--
 #renderInfo{flex:2 1 0;min-width:0;margin:var(--s5) 0 0 var(--s2);color:var(--text-2)}
 .fader .caption{max-width:100%;min-height:32px;text-align:center;letter-spacing:.04em}
 
-.pads{flex:1;min-height:0;display:flex;gap:var(--s3)}
-.padbox{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:var(--s1)}
+/* pads side by side share one header row (name, then readout), so the pads themselves always line up */
+.pads{flex:1;min-height:0;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:var(--s1) var(--s3)}
+.padbox{display:contents}
 .pad{position:relative;flex:1;min-height:0;background:var(--control);border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);touch-action:none;overflow:hidden}
 .pad.held{background:var(--pressed)}
 .pad .h,.pad .v{position:absolute;background:var(--line)}
 .pad .h{left:0;right:0;top:50%;height:1px}
 .pad .v{top:0;bottom:0;left:50%;width:1px}
-.pad .dot{position:absolute;width:20px;height:20px;margin:-10px 0 0 -10px;background:var(--text);border-radius:var(--radius)}
-.pad .edge{position:absolute;font:600 12px/16px var(--font-sans);color:var(--text-3)}
-.pad .top{top:var(--s1);left:0;right:0;text-align:center}
-.pad .bottom{bottom:var(--s1);left:0;right:0;text-align:center}
-.pad .left{left:var(--s2);top:50%;margin-top:-8px}
-.pad .right{right:var(--s2);top:50%;margin-top:-8px}
-.padnums{display:flex;justify-content:space-between;align-items:center;gap:var(--s2)}
+.pad .dot{z-index:1;position:absolute;width:20px;height:20px;margin:-10px 0 0 -10px;background:var(--text);border-radius:var(--radius)}
+.pad .edge{position:absolute;font:600 12px/16px var(--font-sans);color:var(--text-3);background:inherit;padding:0 var(--s1)}
+.pad .top{top:var(--s1);left:50%;transform:translateX(-50%)}
+.pad .bottom{bottom:var(--s1);left:50%;transform:translateX(-50%)}
+.pad .left{left:var(--s1);top:50%;margin-top:-8px}
+.pad .right{right:var(--s1);top:50%;margin-top:-8px}
+.padnums{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
+.padnums .num-small{display:flex;flex-wrap:wrap;gap:0 var(--s2)}
+.padnums .num-small span{white-space:nowrap}
+.padnums .num-small span+span::before{content:"\B7  ";white-space:pre}
 
 /* What has no effect in the current setting */
 .idle{opacity:.4}
@@ -130,14 +131,20 @@ body.perform #out{position:fixed;inset:0;visibility:visible;z-index:1}
   color:var(--text);border-radius:var(--radius);padding:var(--s2) var(--s3);font:500 14px/20px var(--font-sans)}
 
 @media (max-width:900px){ .tbtn{min-width:72px;padding:0 var(--s2)} }
-/* Phones: tabs slide sideways and a page that does not fit scrolls, with its faders and pads kept playable */
+/* Phones: tabs wrap and a page that does not fit scrolls, with its faders and pads kept playable */
 @media (max-width:900px),(max-height:520px){
-  .tabs{flex-shrink:0;justify-content:flex-start;overflow-x:auto;touch-action:pan-x;scrollbar-width:none}
-  .tab{flex:none}
-  .page{overflow-x:hidden;overflow-y:auto;touch-action:pan-y}
+  .tabs{justify-content:flex-start}
+  .tab{flex:1 1 auto;padding:0 var(--s1)}
+  .page{overflow-x:hidden;overflow-y:auto;touch-action:pan-y;overscroll-behavior:contain}
   .faders{flex:none;height:150px}
   .pads{flex:none;height:150px}
 }
+/* with a mouse or trackpad the browser's own thin scroll bar shows (it can be dragged) and the drawn track steps aside */
+@media (hover:hover) and (pointer:fine){ .page{scrollbar-width:thin} .scrolltrack{display:none} }
+/* on a touch screen the drawn track stands in for the browser's scroll bar, which phones hide or fade */
+@media (pointer:coarse){ .page{scrollbar-width:none} .page::-webkit-scrollbar{display:none} }
+/* small phones, upright or on their side: tighter tabs, so all seven still fit one row */
+@media (max-width:400px),(max-width:700px) and (max-height:520px){ .tab{padding:0 2px;font-size:13px;letter-spacing:-.01em} }
 @media (max-height:520px){ .tbtn{min-height:var(--hit)} .tbtn small{display:none} .mem small{display:none} }
 /* Upright phone: one column, and the transport on two rows. Only with height to spare: a short, narrow window
    (a small phone on its side, or a laptop at 200% zoom) keeps two columns, or the module pages have no room at all */
@@ -167,8 +174,7 @@ body.perform #out{position:fixed;inset:0;visibility:visible;z-index:1}
 @media (max-height:520px){ .frame{max-height:calc(100vh - 250px)} .mems{max-height:56px} .meta{min-height:32px;padding:var(--s1) var(--s3)}
   /* phones on their side: less status, and long choices shrink instead of being cut off */
   #chipOffline,#chipDelay{display:none}
-  .seg button{min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis}
-  .page{scrollbar-width:thin} }
+  .seg button{min-width:0;font-size:13px;white-space:normal;line-height:16px;padding:var(--s1)} }
 /* short and narrow: the transport buttons share one row */
 @media (max-width:700px) and (max-height:520px){ #fps{display:none} .tbtn{min-width:0;padding:0 var(--s1)} .transport .mid .tbtn,.transport>.tbtn{flex:1 1 0} .transport{padding:var(--s1) var(--s2)} main{gap:var(--s2);padding:var(--s2)} .sep{display:none} .mems{gap:var(--s1)} .mem{padding:var(--s1)} }
 @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
@@ -177,11 +183,11 @@ body.perform #out{position:fixed;inset:0;visibility:visible;z-index:1}
 #help{position:fixed;inset:0;z-index:4;background:rgba(11,11,13,.82);display:flex;align-items:center;justify-content:center;padding:var(--s4)}
 .helpwrap{width:100%;max-width:640px;max-height:100%;display:flex;flex-direction:column;background:var(--raised);
   border:var(--stroke-hair) solid var(--line);border-top:var(--stroke-mark) solid var(--area);border-radius:var(--radius);overflow:hidden}
-.helpbox{min-height:0;overflow-y:auto;touch-action:pan-y;-webkit-user-select:text;user-select:text;padding:var(--s4) var(--s5);font:500 14px/20px var(--font-sans)}
+.helpscroll{flex:0 1 auto}
+.helpbox{flex:0 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-user-select:text;user-select:text;padding:var(--s4) var(--s5);font:500 14px/20px var(--font-sans)}
 .helpbox:focus-visible{outline-offset:-2px}
-.helpwrap .more{border:0;border-top:var(--stroke-hair) solid var(--edge);border-radius:0}
-.helpwrap .more:focus-visible{outline-offset:-4px}
-#page:focus,#tabs:focus{outline:0}   /* they only hold focus for a moment when a More cue hides */
+.helpscroll .scrolltrack{right:var(--s2)}
+.helpwrap .morenote{margin:0;padding:var(--s2);border-top:var(--stroke-hair) solid var(--line)}
 .helpbox h2{margin:0 0 var(--s3);font:900 20px/24px var(--font-sans);letter-spacing:.06em;text-transform:uppercase}
 .helpbox h3{margin:var(--s4) 0 var(--s2);font:600 12px/16px var(--font-sans);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
 .helpbox ul{margin:0;padding-left:var(--s5)}
@@ -189,4 +195,14 @@ body.perform #out{position:fixed;inset:0;visibility:visible;z-index:1}
 .helpbox p{margin:var(--s3) 0 0}
 .helpbox .safety{margin:0;padding:var(--s2) var(--s3);border:var(--stroke-hair) solid var(--attention);border-radius:var(--radius)}
 .helpbox .num-small{color:var(--text-3)}
+.helpbtns{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s3)}
+.helpbtns button,.btnlike{display:inline-flex;align-items:center;min-height:var(--hit);padding:0 var(--s3);background:var(--control);color:var(--text);
+  border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);font:600 14px/18px var(--font-sans);cursor:pointer}
+.helpbtns button:active,.btnlike:active{background:var(--pressed)}
+#updGo{background:var(--text);color:var(--on-colour);border-color:var(--text)}   /* the one primary button in Help */
+.helpnote{color:var(--text-2)}
+.helpbox a{color:var(--text);text-decoration:underline;text-underline-offset:2px}
+#pasteBox{display:block;box-sizing:border-box;width:100%;margin-top:var(--s3);padding:var(--s2);background:var(--ground);color:var(--text);
+  border:var(--stroke-hair) solid var(--edge);border-radius:var(--radius);font:500 12px/16px var(--font-mono);resize:vertical}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #helpClose{margin-top:var(--s4);min-height:var(--hit);min-width:96px;padding:0 var(--s4);background:var(--control);border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);font:600 14px/18px var(--font-sans)}

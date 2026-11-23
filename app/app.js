@@ -24,7 +24,7 @@
   const DRIFT_PAGES = [
     { label: 'Trails', longs: ['drift.keyinto', 'drift.edges'], floats: ['drift.feed', 'drift.key', 'drift.sharpen', 'rig.delay'] },
     { label: 'Move', longs: ['drift.mirror'], pads: [
-      { x: 'drift.turn', y: 'drift.zoom', label: 'Zoom and turn', top: 'In', bottom: 'Out', left: 'Left', right: 'Right' },
+      { x: 'drift.turn', y: 'drift.zoom', yFirst: true, label: 'Zoom and turn', top: 'In', bottom: 'Out', left: 'Left', right: 'Right' },
       { x: 'drift.shiftx', y: 'drift.shifty', label: 'Slide', top: 'Up', bottom: 'Down', left: 'Left', right: 'Right' }] }
   ];
   const COLOUR_PAGES = [
@@ -81,7 +81,7 @@
 
   const store = {
     get(k, d) { try { const v = localStorage.getItem(STORE + ':' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem(STORE + ':' + k, JSON.stringify(v)); } catch (e) {} }
+    set(k, v) { if (store.frozen) return; try { localStorage.setItem(STORE + ':' + k, JSON.stringify(v)); } catch (e) {} }
   };
 
   function say(text) { const m = $('msg'); m.textContent = text; m.hidden = !text; }
@@ -416,7 +416,11 @@
     pad.setAttribute('aria-label', p.label + '. Arrow keys move it, Delete centres it');
     function draw() {
       dot.style.left = (cx.norm() * 100) + '%'; dot.style.top = (100 - cy.norm() * 100) + '%';
-      num.textContent = fmt(cx) + ' ' + fmt(cy);
+      // in the pad's own words and in the order its name gives: "Out 0.012 · Right 0.002"
+      const say = (c, minus, plus) => { const v = c.get(), t = fmt({ get: () => Math.abs(v), spec: c.spec }); return !+t ? t : v < 0 ? minus + ' ' + t : plus + ' ' + t; };
+      const h = say(cx, p.left, p.right), v = say(cy, p.bottom, p.top);
+      num.textContent = '';
+      for (const part of p.yFirst ? [v, h] : [h, v]) { const s = document.createElement('span'); s.textContent = part; num.append(s); }
     }
     pad.addEventListener('keydown', e => {
       const d = nudgeKey(e), across = e.key === 'ArrowLeft' || e.key === 'ArrowRight', back = e.key === 'Delete' || e.key === 'Backspace';
@@ -477,7 +481,7 @@
   // Pages run in signal order: Source, the synth, Trails, Colour, then the LFOs, which reach all of those, and Output
   const SAME_PAGE = { Osc: 'Osc A', 'Osc A': 'Osc', 'Osc B': 'Osc', Mix: 'Osc', Transform: 'Move' };   // Transform was renamed Move in 0.5.3
   let pages = [], current = 0, open = store.get('page', 'Source');
-  const cues = {};   // the More cues, filled in below once their parts exist
+  const cues = {};   // the scroll cues, filled in below once their parts exist
   function buildTabs() {
     showRandom();
     pages = [{ label: 'Source', special: 'source' }].concat(SOURCES[S.source].pages, S.driftOn ? DRIFT_PAGES : [], COLOUR_PAGES, LFO_PAGES, OUTPUT_PAGES);
@@ -489,13 +493,11 @@
       t.onclick = () => { open = p.label; store.set('page', open); buildTabs(); $('page').scrollTop = 0; };
       tabs.append(t);
     });
-    if (cues.tabs) cues.tabs();   // first, so the open tab is scrolled into the room the cue leaves
-    const on = tabs.children[current]; if (on) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     buildPage();
   }
   const showing = special => pages[current] && pages[current].special === special;
   function buildPage() {
-    views = []; queueMicrotask(() => { if (cues.page) cues.page(); });   // the More cue reads the page once it is built
+    views = []; queueMicrotask(() => { if (cues.page) cues.page(); });   // the scroll cue reads the page once it is built
     const page = $('page'); page.textContent = '';
     const p = pages[current], box = document.createElement('div'); box.className = 'choices';
     if (p.special === 'source') {
@@ -728,7 +730,12 @@
     $('learn').setAttribute('aria-pressed', String(on)); $('chipLearn').hidden = !on;
     $('learnHint').textContent = on ? 'Tap a control' : 'Map a knob';
     if (on && !SHELL && !navigator.requestMIDIAccess) say('This browser has no Web MIDI, so a controller cannot be learnt here.');
-    else if (on && !ports) say('No MIDI device is connected yet. Tap MIDI learn again to finish.');
+    else if (on) connectMidi().then(ok => {   // the browser asks for MIDI here, the first time, not when the app opens
+      if (!learning) return;
+      if (ok === 'blocked') say('MIDI is blocked for this page. Allow it in the browser\'s site settings, then tap MIDI learn again.');
+      else if (!ok) say('MIDI is not available here. Tap MIDI learn again to finish.');
+      else if (!ports) say('No MIDI device is connected yet. Tap MIDI learn again to finish.');
+    });
   }
   $('learn').addEventListener('click', () => setLearning(!learning));
   function onMidi(ev) {
@@ -760,15 +767,26 @@
   // the native shell passes MIDI bytes in here (Android MidiManager, iOS CoreMIDI)
   window.nxMidi = bytes => onMidi({ data: bytes });
   window.nxMidiPorts = n => { ports = n; $('chipMidi').hidden = !n; $('chipMidi').textContent = n === 1 ? '1 MIDI device' : n + ' MIDI devices'; };
-  if (!SHELL && navigator.requestMIDIAccess) {
-    navigator.requestMIDIAccess().then(acc => {
+  // MIDI in the browser: asked for the first time MIDI learn is tapped, so a first open shows no browser question.
+  // Once allowed, it connects by itself on every later open, so mapped knobs work straight away.
+  let midiAccess = null;
+  function connectMidi() {
+    if (SHELL || !navigator.requestMIDIAccess) return Promise.resolve(true);
+    if (!midiAccess) midiAccess = navigator.requestMIDIAccess().then(acc => {
       const hook = () => {
         ports = 0; acc.inputs.forEach(i => { i.onmidimessage = onMidi; ports++; });
         $('chipMidi').hidden = !ports; $('chipMidi').textContent = ports === 1 ? '1 MIDI device' : ports + ' MIDI devices';
       };
       acc.onstatechange = hook; hook();
-    }).catch(() => {});
+      return true;
+    }, e => { midiAccess = null; return e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? 'blocked' : false; });
+    return midiAccess;
   }
+  if (!SHELL && navigator.requestMIDIAccess && navigator.permissions)
+    navigator.permissions.query({ name: 'midi' }).then(s => s.state === 'granted', () => false).then(kept => {
+      if (kept) connectMidi();
+      else if (Object.keys(midiMap).length) say('To use your MIDI controller, tap MIDI learn once to reconnect it.');
+    });
 
   // ---- video out: the shell serves the picture on the network for a mixer to pull --------------------------------
   const videoOut = {
@@ -783,7 +801,7 @@
     const c = $('chipOut'), w = $('outInfo');
     c.hidden = !videoOut.on; c.textContent = videoOut.clients ? 'Video out ' + videoOut.clients : 'Video out';
     c.className = videoOut.clients ? 'chip live' : 'chip';
-    if (w) { w.hidden = !videoOut.on; w.textContent = videoOut.text(); }
+    if (w) { w.hidden = !videoOut.on; w.textContent = videoOut.text(); if (cues.page) cues.page(); }
   }
   function setVideoOut(on) {
     const url = on ? window.nxOut.start() : (window.nxOut.stop(), '');
@@ -942,42 +960,33 @@
     requestAnimationFrame(loop);
   }
 
-  // ---- "More": a scrolling area that does not show everything says so in words, with a button that goes there.
-  // The cue has its own row (it never covers a fader or pad) and stays while the area overflows, so nothing jumps as you
-  // scroll: "More below" until the end, then "Back to top". Tabs that do not fit get "More" at the end of their row.
-  function moreCue(area, btn, across) {
-    const say = across ? [['More', '\u25B8', 'More tabs'], ['Back', '\u25C2', 'Back to the first tab']]
-                       : [['More below', '\u25BE', 'More below'], ['Back to top', '\u25B4', 'Back to top']];
-    const word = document.createElement('span'), mark = document.createElement('span'); mark.setAttribute('aria-hidden', 'true');
-    btn.append(word, mark);
-    let atEnd = false;
+  // ---- Scroll cues: an area that does not show everything says so, and never moves anything for you (a scripted
+  // scroll overshot on iPhone and sent the tabs and the Help text off the screen). A thin track at the edge shows where
+  // you are and how much there is; a quiet line under the area says "Scroll for more" until the end, then "End".
+  // The line keeps its row the whole time the area overflows, so nothing jumps as you scroll.
+  function scrollCue(area, note, track) {
+    const thumb = track.firstElementChild, box = track.parentElement;
     function update() {
-      const size = across ? area.clientWidth : area.clientHeight, full = across ? area.scrollWidth : area.scrollHeight;
-      const pos = across ? area.scrollLeft : area.scrollTop;
-      // shown while the area overflows and can scroll; showing it only makes it overflow more, so no flicker
-      const scrolls = getComputedStyle(area)[across ? 'overflowX' : 'overflowY'] !== 'visible';
-      const hide = !(scrolls && full > size + 1);
-      if (hide && !btn.hidden && document.activeElement === btn) area.focus({ preventScroll: true });   // focus stays nearby
-      btn.hidden = hide;
-      atEnd = pos + size >= full - 2;
-      const s = say[atEnd ? 1 : 0];
-      if (word.textContent !== s[0]) { word.textContent = s[0]; mark.textContent = s[1]; btn.setAttribute('aria-label', s[2]); }
+      const size = area.clientHeight, full = area.scrollHeight, pos = area.scrollTop;
+      const scrolls = getComputedStyle(area).overflowY !== 'visible' && full > size + 1;
+      box.classList.toggle('scrolls', scrolls);
+      note.hidden = !scrolls; track.hidden = !scrolls;
+      if (!scrolls) return;
+      const say = pos + size >= full - 2 ? 'End' : 'Scroll for more \u25BE';
+      if (note.textContent !== say) note.textContent = say;
+      const room = track.clientHeight, h = Math.min(room, Math.max(24, room * size / full));
+      thumb.style.height = h + 'px';
+      thumb.style.transform = 'translateY(' + ((room - h) * Math.min(1, Math.max(0, pos / (full - size)))) + 'px)';
     }
-    btn.onclick = () => {
-      const size = across ? area.clientWidth : area.clientHeight;
-      const by = atEnd ? -(across ? area.scrollWidth : area.scrollHeight) : Math.max(40, size * 0.8);
-      area.scrollBy({ [across ? 'left' : 'top']: by, behavior: calm ? 'auto' : 'smooth' });
-    };
     area.addEventListener('scroll', update, { passive: true });
     if (self.ResizeObserver) new ResizeObserver(() => requestAnimationFrame(update)).observe(area);   // next frame: no resize loop
     window.addEventListener('resize', update);
     return update;
   }
-  cues.page = moreCue($('page'), $('pageMore'), false);
-  cues.tabs = moreCue($('tabs'), $('tabsMore'), true);
-  cues.help = moreCue($('helpBody'), $('helpMore'), false);
-  cues.page(); cues.tabs();
-  if (document.fonts) document.fonts.ready.then(() => { cues.page(); cues.tabs(); cues.help(); });   // text wraps differently once the fonts load
+  cues.page = scrollCue($('page'), $('pageMore'), $('pageTrack'));
+  cues.help = scrollCue($('helpBody'), $('helpMore'), $('helpTrack'));
+  cues.page();
+  if (document.fonts) document.fonts.ready.then(() => { cues.page(); cues.help(); });   // text wraps differently once the fonts load
 
   // ---- help: shown once on a first open, with the light safety note, and any time from the Help button -----------
   function setHelp(on) {
@@ -989,14 +998,144 @@
   $('helpClose').onclick = () => setHelp(false);
   $('help').addEventListener('keydown', e => {
     if (e.key === 'Escape') { e.preventDefault(); setHelp(false); }
-    else if (e.key === 'Tab') {   // focus stays inside: the text (arrow keys scroll it), More, Close
-      const f = [$('helpBody'), $('helpMore'), $('helpClose')].filter(x => !x.hidden);
-      const i = f.indexOf(document.activeElement);
-      e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+    else if (e.key === 'Tab') {   // focus stays inside Help: the text itself (arrow keys scroll it), then its buttons and links
+      const f = [$('helpBody'), ...$('helpBody').querySelectorAll('button, a[href], [tabindex="0"], textarea')].filter(x => x.offsetParent !== null);
+      const i = f.indexOf(document.activeElement), last = f.length - 1;
+      if (e.shiftKey ? i <= 0 : i === last) { e.preventDefault(); f[e.shiftKey ? last : 0].focus(); }
     }
   });
   $('help').addEventListener('click', e => { if (e.target === $('help')) setHelp(false); });
   if (!store.get('helpSeen', false)) setHelp(true);
+
+  // ---- updates and backups, the way Phase Ten Scorekeeper does them -------------------------------------------
+  // The installed app changes only when Update now is tapped (see sw.js). A backup is everything this app stores in
+  // this browser: settings, presets, the MIDI map. A safety copy is kept before an update or a restore replaces it.
+  const VERSION = self.SIGNAL_VERSION || '0';
+  const newer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+  const online = !SHELL && /^https?:$/.test(location.protocol);
+  const note = (id, text) => { $(id).textContent = text; $(id).hidden = !text; };
+  let ready = null;   // the newer version, once a check has found one
+  async function checkForUpdate() {
+    try {
+      const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) return 'offline';
+      const v = await res.json();
+      return v && newer(v.version, VERSION) ? v : 'current';
+    } catch (e) { return 'offline'; }
+  }
+  function showReady(v) {
+    ready = v; $('chipUpdate').hidden = false; $('updGo').hidden = false;
+    note('updNote', 'Version ' + v.version + ' is ready. Tap Update now to get it.' + (v.notes ? ' ' + v.notes : ''));
+  }
+  $('updCheck').onclick = async () => {
+    note('updNote', 'Checking for updates\u2026');
+    const r = await checkForUpdate();
+    if (r === 'offline') note('updNote', 'Could not check. Either there is no internet, or this copy was opened from a downloaded file. A downloaded copy updates when you download it again.');
+    else if (r === 'current') { note('updNote', 'You have the newest version, ' + VERSION + '. If something seems wrong, tap Fetch the app again to get a fresh copy.'); $('updAgain').hidden = false; }
+    else showReady(r);
+  };
+  // what belongs to this one device stays out of a backup: install state, the chosen camera, Video out, Help seen
+  const DEVICE_ONLY = ['installed', 'camera', 'videoOut', 'helpSeen', 'lost'];
+  function ownKeys() {
+    const ks = [];
+    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(STORE + ':') && !DEVICE_ONLY.includes(k.slice(STORE.length + 1))) ks.push(k); } } catch (e) {}
+    return ks;
+  }
+  function backupText() {
+    const data = {};
+    try { for (const k of ownKeys()) data[k.slice(STORE.length + 1)] = localStorage.getItem(k); } catch (e) {}
+    return JSON.stringify({ app: 'Mothlight No.01', version: VERSION, saved: new Date().toISOString(), data }, null, 1);
+  }
+  function keepSafetyCopy(name) { try { localStorage.setItem('mothlight.' + name, backupText()); } catch (e) {} }
+  // the worker fetches every file again and puts them in place only once all have arrived; then the page reloads
+  async function fetchAgain(version) {
+    note('updNote', 'Fetching the app\u2026');
+    const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (!sw) { location.reload(); return; }   // not kept on this device yet: a reload is already fresh
+    const answer = await new Promise(done => {
+      const ch = new MessageChannel(); ch.port1.onmessage = e => done(e.data || {});
+      setTimeout(() => done({ ok: false, why: 'no answer' }), 60000);
+      sw.postMessage({ do: 'refresh', version }, [ch.port2]);
+    });
+    if (!answer.ok) { console.warn('update:', answer.why); note('updNote', 'Could not fetch the app. Nothing changed, and the version you have still works. Try again on a steady connection.'); return; }
+    keepSafetyCopy('beforeUpdate'); store.frozen = true;
+    const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+    if (reg) await reg.update().catch(() => {});
+    location.reload();
+  }
+  $('updGo').onclick = () => { if (ready && confirm('Update to version ' + ready.version + '? Your settings, presets and MIDI map stay as they are.')) fetchAgain(ready.version); };
+  $('updAgain').onclick = () => { if (confirm('Fetch a fresh copy of version ' + VERSION + '? Your settings, presets and MIDI map stay as they are.')) fetchAgain(VERSION + '-' + Date.now()); };
+  async function autoCheck() {
+    if (!online || ready || !navigator.onLine) return;
+    const r = await checkForUpdate();
+    if (r && typeof r === 'object') showReady(r);
+  }
+  if (online) { autoCheck(); document.addEventListener('visibilitychange', () => { if (!document.hidden) autoCheck(); }); }
+  else { $('updRow').hidden = true; $('updAbout').textContent = SHELL ? 'This copy updates with the app it came in.'
+    : 'This copy was opened from a downloaded file. It updates by downloading it again; the web address updates from here.'; }
+
+  $('bkSave').onclick = async () => {
+    const name = 'mothlight-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    const file = new File([backupText()], name, { type: 'application/json' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Mothlight No.01 backup' }); note('bkNote', 'Backup shared. Keep it somewhere safe.'); return; }
+    } catch (e) { if (e.name === 'AbortError') return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    note('bkNote', 'Backup saved as ' + name + '. Keep it somewhere safe.');
+  };
+  function restoreFrom(text) {
+    let b;
+    try {
+      text = String(text || '').replace(/^\uFEFF/, '').trim();
+      if (text.length > 1000000) throw new Error('too big');
+      const s = text.indexOf('{'), e = text.lastIndexOf('}');   // extra text around it (a pasted message) is fine
+      if (s < 0 || e < s) throw new Error('no backup');
+      b = JSON.parse(text.slice(s, e + 1));
+      if (!b || b.app !== 'Mothlight No.01' || !b.data || typeof b.data !== 'object' || Object.values(b.data).some(v => typeof v !== 'string'))
+        throw new Error('no backup');
+      for (const k in b.data) {
+        if (DEVICE_ONLY.includes(k)) { delete b.data[k]; continue; }
+        const v = JSON.parse(b.data[k]);
+        if ((k === 'midi' && (!v || typeof v !== 'object' || Array.isArray(v))) || (k === 'mems' && !Array.isArray(v))) throw new Error('damaged');
+      }
+    } catch (e) { note('bkNote', 'That is not a Mothlight No.01 backup, so nothing was changed.'); return; }
+    const when = b.saved ? new Date(b.saved).toLocaleString() : 'an unknown date';
+    if (!confirm('Replace the settings, presets and MIDI map on this device with the backup from ' + when + '? You can undo this afterwards.')) return;
+    keepSafetyCopy('beforeRestore'); store.frozen = true;
+    const old = {}; for (const k of ownKeys()) old[k] = localStorage.getItem(k);
+    try {
+      for (const k in old) localStorage.removeItem(k);
+      for (const k in b.data) localStorage.setItem(STORE + ':' + k, b.data[k]);
+    } catch (e) {   // put back exactly what was there, then carry on as before
+      try { for (const k of ownKeys()) localStorage.removeItem(k); for (const k in old) localStorage.setItem(k, old[k]); } catch (e2) {}
+      store.frozen = false; console.warn('restore:', e); note('bkNote', 'The backup could not be stored, so nothing was changed.'); return;
+    }
+    location.reload();
+  }
+  const readFile = f => f.text ? f.text() : new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(r.error); r.readAsText(f); });
+  $('bkFile').onchange = ev => {
+    const input = ev.target, f = input.files && input.files[0];
+    if (!f) return;
+    readFile(f).then(restoreFrom).catch(e => { console.warn('read:', e); note('bkNote', 'Could not read that file, so nothing was changed.'); }).finally(() => { input.value = ''; });
+  };
+  $('bkLoad').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('bkFile').click(); } };
+  function showPaste(text) {
+    $('pasteArea').hidden = false; $('pasteBox').value = text || ''; $('pasteBox').readOnly = !!text; $('pasteGo').hidden = !!text;
+    $('pasteBox').focus(); if (text) $('pasteBox').select();
+  }
+  $('bkCopy').onclick = async () => {
+    const text = backupText();
+    try { await navigator.clipboard.writeText(text); note('bkNote', 'Backup copied. Paste it into a note or a message to keep it.'); $('pasteArea').hidden = true; }
+    catch (e) { note('bkNote', 'Copying was not allowed here. Select all of the text below and copy it.'); showPaste(text); }
+  };
+  $('bkPaste').onclick = () => { note('bkNote', 'Paste the backup text below, then tap Restore from text.'); showPaste(''); };
+  $('pasteGo').onclick = () => restoreFrom($('pasteBox').value);
+  // the settings from before the last restore, kept on this device: restoring them is itself undoable
+  try { $('bkUndo').hidden = !localStorage.getItem('mothlight.beforeRestore'); } catch (e) {}
+  $('bkUndo').onclick = () => { let t = null; try { t = localStorage.getItem('mothlight.beforeRestore'); } catch (e) {} if (t) restoreFrom(t); };
+  $('pasteCancel').onclick = () => { $('pasteArea').hidden = true; note('bkNote', ''); $('bkPaste').focus(); };
 
   // ---- install as an app (home-screen icon, opens full screen) ------------------------------------------------
   let installEvt = null;

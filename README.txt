@@ -94,11 +94,14 @@ Browsers with only WebGL 1: not yet tested.
 
 TESTED ON
 ---------
-Measured on an Amazon Fire 7 (2019), October 2026, on versions 0.3 and
-0.4: 60 frames a second with Solo at the default detail. This version
-has not yet been run on it. Every other phone, tablet, computer and
-browser: not yet tested. Phones held upright: not yet tested. The camera
-from the public web address: not yet tested.
+Tried on an Amazon Fire 7 (2019) in its Silk browser, November 2026, on
+0.5.7: opens and plays, at 60 frames a second held sideways by the
+app's own counter. Measured on the same Fire 7, October 2026, on
+versions 0.3 and 0.4: 60 frames a second with Solo at the default
+detail. Tried on an iPhone 17 Pro, November 2026, on 0.5.3: opens and
+plays in Safari and from its home screen icon, also in Airplane mode.
+Every other phone, tablet, computer and browser: not yet tested. The
+camera from the public web address: not yet tested.
 
 
 KNOWN LIMITS
