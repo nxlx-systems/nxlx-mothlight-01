@@ -522,7 +522,7 @@
         makeLocalChoice('Source', Object.keys(SOURCES).map(k => [SOURCES[k].button, k]), () => S.source, v => { if (v !== S.source || (v === 'camera' && !camera.stream)) { S.source = v; buildChain(); } }),
         makeLocalChoice('Trails', [['On', true], ['Off', false]], () => S.driftOn, v => { S.driftOn = v; buildChain(); }));
       if (S.source === 'camera' && camera.list.length) box.append(makeLocalChoice('Camera', camera.list.map((d, k) => [cameraName(d, k), d.deviceId]), () => camera.id, pickCamera));
-      box.append(makeRandomRow(), makeLocalChoice('Keeps Output', [['Reset', true]], () => false, resetPatch));
+      box.append(makeRandomRow());   // Clear, in the bottom bar, wipes the trails; there is no reset of every setting (D33)
       page.append(box);
       return;
     }
@@ -688,7 +688,7 @@
     }
     refresh(); save();
   }
-  // Back to a known, readable picture. Presets, MIDI, the source and the output settings stay.
+  // Back to a known, readable picture, for the tests (window.mothlight.reset). Presets, MIDI, the source and the output settings stay.
   function resetPatch() {
     const base = stage => Object.assign(stage.values, MothlightCore.defaults(stage.isf));
     const keep = { mode: S.colour.values.mode, invert: S.colour.values.invert, matte: S.colour.values.matte, soft: S.colour.values.soft };
@@ -1189,7 +1189,7 @@
     showDelay();
     buildMems();
     if (window.nxOut && store.get('videoOut', false)) setVideoOut(true);
-    window.mothlight = { S, engine, controls, camera, videoOut, param, modulate, randomise, midi: () => midiMap };
+    window.mothlight = { S, engine, controls, camera, videoOut, param, modulate, randomise, reset: resetPatch, midi: () => midiMap };
     requestAnimationFrame(loop);
     setTimeout(() => { stageFor('osc').then(() => stageFor('modular')).catch(() => {}); }, 1000);
   })();

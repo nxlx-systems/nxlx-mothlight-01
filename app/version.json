@@ -1,4 +1,4 @@
 {
- "version": "1.0.2",
- "notes": "Delay is now Echo or Smear, set in seconds, and smooth. Messages close or fade on their own, faders are hand-sized, and every part carries the Mothlight name."
+ "version": "1.0.3",
+ "notes": "Reset is gone from the Source page. To wipe the trails, use Clear in the bottom bar; your settings stay as they are."
 }
