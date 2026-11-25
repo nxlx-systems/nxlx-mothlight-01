@@ -65,6 +65,22 @@
             "DEFAULT": 0
         },
         {
+            "NAME": "around",
+            "LABEL": "Outside",
+            "TYPE": "long",
+            "VALUES": [0, 1],
+            "LABELS": ["Black", "Glow"],
+            "DEFAULT": 0
+        },
+        {
+            "NAME": "glow",
+            "LABEL": "Glow level",
+            "TYPE": "float",
+            "MIN": 0.0,
+            "MAX": 1.0,
+            "DEFAULT": 0.5
+        },
+        {
             "NAME": "spread",
             "LABEL": "Colour",
             "TYPE": "float",
@@ -84,6 +100,9 @@
 // The slow drift of the angle turns the stripes too, and a turn moves them most past the pixels far from the centre
 // (up to 1.02 from it). With many bands at top speed the drift alone swept stripes past those about 3.5 times a
 // second, so its size is held to half of what the rate leaves of the 3. At usual speeds it is not changed.
+// The glow outside the window is Osc B alone, which moves at 0.2 of the rate: at most 0.6 light-dark changes a
+// second at the top rate, whatever Glow level is. The level only sets how bright it is, up to 0.7 (twice the old
+// fixed 0.35), so the window stays the brightest part of the picture.
 
 float wavef(float x, int k) {
     float f = fract(x);
@@ -148,7 +167,8 @@ void main() {
     if (shape > 0) {
         m = 1.0 - smoothstep(0.27, 0.31, d);
     }
-    float v = mix(b * 0.35, a, m);
+    // outside the window: black (as in Duo), or a glow of Osc B at Glow level (the default 0.5 gives the old 0.35)
+    float v = mix(around == 1 ? b * glow * 0.7 : 0.0, a, m);
 
     // Colour by brightness; black stays black, and no colour at all is plain grey for a later stage to colour
     vec3 pal = 0.5 + 0.5 * cos(6.2831853 * (v * spread + 0.62 + vec3(0.0, 0.33, 0.67)));

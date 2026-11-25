@@ -48,7 +48,8 @@ Best held sideways (landscape).
 The tabs run left to right in the order the signal flows:
   Source     Solo, Duo or the camera, Trails on or off, what Random changes
   Osc        the pattern, in brightness only (Duo has two, plus Mix)
-  Trails     the feedback loop: length, key, sharpen, edges, Echo or Smear
+  Trails     the feedback loop: length, key, sharpen, edges, and a delay,
+             Frames or Smear
   Move       mirror, zoom and turn, slide (needs Trails on)
   Colour     the one place colour is decided
   LFO        two slow movers you can send to zoom, turn, bend, angle,
@@ -56,7 +57,7 @@ The tabs run left to right in the order the signal flows:
   Output     colour, mono or matte, invert, and detail
 Along the bottom: Perform (picture only), Freeze, Fade, Clear,
 Random, MIDI learn and Blackout (hold).
-Tap a fader twice to put it back. Tap a pad twice to centre it.
+To put a fader back where it starts, tap the number above it (or tap the fader twice). To centre a pad, tap its name. An underlined number means it has moved.
 Presets P1 to P8: hold to save, tap to recall.
 With a keyboard: arrow keys move a fader or pad, Delete puts it back,
 Enter recalls a preset and Shift and Enter saves one.
@@ -132,8 +133,8 @@ WHAT IS IN THIS FOLDER
 Open Mothlight No.01.html   opens the app
 app/                     the app itself
 isf/                     the four shaders, written as ISF files (not yet
-                         tried in other ISF software; Echo and Smear
-                         only works inside Mothlight No.01)
+                         tried in other ISF software; Frames and Smear
+                         only work inside Mothlight No.01)
 LICENSE.txt              the licence, and which licence covers which files
 licences/                the full licence texts
 README.txt               this file

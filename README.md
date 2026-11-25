@@ -22,7 +22,7 @@
 <p align="center">
   <img src="docs/phone-move.png" width="240" alt="On a phone held upright: the Move page with its two pads">
   &nbsp;
-  <img src="docs/phone-help.png" width="240" alt="Help: updates, backups and About">
+  <img src="docs/phone-help.png" width="240" alt="The Menu: updates, backups and About">
 </p>
 
 ---
@@ -32,11 +32,11 @@
 | Feature | What it does |
 |---|---|
 | **Two pattern engines** | Solo (two oscillators, one bending the other) or Duo (two full oscillators and a mix). Or use your camera as the source. |
-| **Feedback trails** | Length, key, sharpen and edges, plus Echo (copies of the picture from up to a few seconds ago) or Smear (a long exposure), so patterns trail, echo and grow. |
+| **Feedback trails** | Length, key, sharpen and edges, plus Frames (the trails fed from a frame up to 60 frames back) or Smear (a long exposure), so patterns trail, repeat and grow. |
 | **Move** | Mirror, zoom, turn and slide, all working on the trails as they build. |
 | **Colour, last** | Colour is decided after the feedback, so any pattern, the camera or the trails can wear any colour. |
 | **Two LFOs** | Slow movers you can send to zoom, turn, bend, angle, hue or key, so the picture keeps moving on its own. |
-| **Made to perform** | Perform (picture only), Freeze, Fade, Clear, Random, eight presets, and Blackout on a hold. |
+| **Made to perform** | Perform (picture only), Freeze, Fade, Clear, Random, eight presets, and Blackout on a hold. Tap the number above a fader to put it back. |
 | **MIDI learn** | Map a knob to any control in a few taps, in browsers with Web MIDI. |
 | **Works offline** | Install it once and it opens with no internet. It updates only when you tap Update now, so it never changes in the middle of a set. |
 | **Backups** | Save your settings, presets and MIDI map to one small file, and restore them on any device. |
@@ -69,16 +69,16 @@ It runs in any up-to-date web browser with WebGL 2. Installing it adds an icon a
 - **Colour:** decides the colours once, near the end.
 - **LFO:** the two LFOs reach back into every stage.
 
-**Ideas borrowed from the instruments we love.** The oscillators, keying and modulation follow the spirit of video synths like Lumen and Vsynth. The feedback stage takes the idea behind processors like VSERPI and Waaave Pool: a picture fed back with zoom, turn and shift, plus echoes of past frames. Those instruments are other people's work, named here only as inspiration; Mothlight No.01 is not connected with them.
+**Ideas borrowed from the instruments we love.** The oscillators, keying and modulation follow the spirit of video synths like Lumen and Vsynth. The feedback stage takes the idea behind processors like VSERPI and Waaave Pool: a picture fed back with zoom, turn and shift, plus frames from the past. Those instruments are other people's work, named here only as inspiration; Mothlight No.01 is not connected with them.
 
-**Open shader files.** Each stage is an ISF shader, a format many VJ tools read. The four files are in [`isf/`](isf/). They have not yet been tried in other ISF software, and Echo and Smear only work inside Mothlight No.01.
+**Open shader files.** Each stage is an ISF shader, a format many VJ tools read. The four files are in [`isf/`](isf/). They have not yet been tried in other ISF software, and Frames and Smear only work inside Mothlight No.01.
 
 **Why the name.** Moths are drawn to a projector beam the way a crowd is drawn to a good show. It is also a nod to Stan Brakhage's 1963 film *Mothlight*, made by pressing moth wings and leaves straight onto film. No.01 is a model number, like hardware.
 
 ## Tried on
 
 - **iPhone 17 Pro**, version 0.5.3: opens and plays in Safari and from its home screen icon, also in Airplane mode.
-- **Amazon Fire 7 (2019)** in its Silk browser, version 0.5.7: opens and plays, held sideways, at 60 frames a second by the app's own counter.
+- **Amazon Fire 7 (2019)** in its Silk browser, version 0.5.7: opens and plays, held sideways, at 60 frames a second by the app's own counter. Version 1.1.1 passed the touch, option and system tests on the same Fire, run inside our Android test app (the same web app in Android's own browser engine).
 - **Everything else:** not yet tested. If it runs on yours, or does not, tell us.
 - **MIDI** needs Web MIDI: Chrome or Edge on a computer, or Chrome on Android. Safari does not have it.
 

@@ -17,7 +17,7 @@
             "LABEL": "Palette",
             "TYPE": "long",
             "VALUES": [0, 1, 2, 3],
-            "LABELS": ["Original", "Spectrum", "Two tone", "Heat"],
+            "LABELS": ["Camera colour", "Spectrum", "Two tone", "Heat"],
             "DEFAULT": 1
         },
         {

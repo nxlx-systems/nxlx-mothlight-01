@@ -25,6 +25,18 @@ button{font:inherit;color:inherit;cursor:pointer}
 .place{display:flex;align-items:center;gap:var(--s3);background:var(--area);color:var(--on-colour);padding:0 var(--s4)}
 .place h1{margin:0;font:900 20px/24px var(--font-sans);letter-spacing:.06em;text-transform:uppercase}
 .place .spacer{flex:1}
+#outOpen[aria-pressed="true"]{background:var(--on-colour);color:var(--area)}
+/* a narrow phone held upright: the title gives way so Output and Menu stay on screen */
+.place{min-width:0} .place h1{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:400px){ .place{gap:var(--s2);padding:0 var(--s2)} .place h1{font-size:15px;letter-spacing:.02em} .place button{padding:0 var(--s2)} #fps{display:none} }
+/* Menu: a short list under its button, over everything else */
+.menuwrap{position:relative;display:flex}
+.menu{position:absolute;right:0;top:calc(100% + var(--s1));z-index:20;display:flex;flex-direction:column;min-width:240px;padding:var(--s1);
+  background:var(--raised);border:var(--stroke-hair) solid var(--edge);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.menu[hidden]{display:none}
+.place .menu button{min-height:var(--hit);padding:0 var(--s3);text-align:left;background:transparent;color:var(--text);border:0;
+  border-radius:var(--radius);font:600 15px/20px var(--font-sans)}
+.place .menu button:hover,.place .menu button:focus-visible{background:var(--control)}
 .place button{min-height:var(--hit);padding:0 var(--s3);background:transparent;color:var(--on-colour);
   border:var(--stroke-hair) solid var(--on-colour);border-radius:var(--radius);font:600 14px/18px var(--font-sans)}
 
@@ -76,7 +88,7 @@ main{display:grid;grid-template-columns:minmax(0,46fr) minmax(0,54fr);gap:var(--
 /* faders keep a hand-sized length: up to 300 px, shorter when the window is short, never the whole window */
 .faders{flex:0 1 300px;min-height:0;max-height:300px;display:flex;gap:var(--s2)}
 .fader{flex:1 1 0;min-width:0;max-width:110px;display:flex;flex-direction:column;align-items:center;gap:var(--s1);min-height:0}
-.track{position:relative;flex:1;width:100%;min-height:60px;background:var(--control);border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);touch-action:none}
+.track{position:relative;flex:1;width:100%;min-height:40px;background:var(--control);border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);touch-action:none}
 .track .fill{position:absolute;left:50%;width:2px;margin-left:-1px;background:var(--text-3)}
 .track .cap{position:absolute;left:var(--s1);right:var(--s1);height:6px;margin-top:-3px;background:var(--text);border-radius:var(--radius-inner)}
 .track.held{background:var(--pressed)}
@@ -97,7 +109,16 @@ main{display:grid;grid-template-columns:minmax(0,46fr) minmax(0,54fr);gap:var(--
 .pad .bottom{bottom:var(--s1);left:50%;transform:translateX(-50%)}
 .pad .left{left:var(--s1);top:50%;margin-top:-8px}
 .pad .right{right:var(--s1);top:50%;margin-top:-8px}
-.padnums{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
+/* D51: a fader's number and a pad's name are buttons that put it back. The hit area grows up and to the sides, never
+   down, so it can never take a touch meant for the top of the fader or pad below it */
+/* a finger-sized button (40 px tall, the full fader width); the underline sits under the number itself */
+.back{min-height:40px;background:none;border:0;color:inherit;padding:0 var(--s1);border-radius:0;text-decoration:underline transparent var(--stroke-hair);text-underline-offset:3px}
+.fader .back{align-self:stretch;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px}
+.padnums.back{justify-content:flex-end;padding-bottom:2px}
+.back.moved{text-decoration-color:var(--edge)}
+.back:active{color:var(--text-2)}
+.idle .back{cursor:default}
+.padnums{text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
 .padnums .num-small{display:flex;flex-wrap:wrap;gap:0 var(--s2)}
 .padnums .num-small span{white-space:nowrap}
 .padnums .num-small span+span::before{content:"\B7  ";white-space:pre}
@@ -124,6 +145,11 @@ body.learning .target{outline:var(--stroke-mark) solid var(--attention)!importan
 /* Perform: the picture alone */
 body.perform #app{visibility:hidden}
 body.perform #out{position:fixed;inset:0;visibility:visible;z-index:1}
+/* the picture alone on a second screen (index.html?out=1, the iOS app's output window), black bars where shapes differ */
+html.out body{background:#000}
+html.out #app{visibility:hidden}
+html.out #out{position:fixed;inset:0;visibility:visible;z-index:1}
+html.out #back,html.out #msg,html.out #help{display:none!important}
 #back{position:fixed;right:var(--s4);bottom:var(--s4);z-index:2;min-height:var(--hit-live);padding:0 var(--s4);background:var(--raised);color:var(--text);
   border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);font:600 14px/18px var(--font-sans)}
 
@@ -210,3 +236,65 @@ body.perform #out{position:fixed;inset:0;visibility:visible;z-index:1}
   border:var(--stroke-hair) solid var(--edge);border-radius:var(--radius);font:500 12px/16px var(--font-mono);resize:vertical}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #helpClose{margin-top:var(--s4);min-height:var(--hit);min-width:96px;padding:0 var(--s4);background:var(--control);border:var(--stroke-hair) solid var(--line);border-radius:var(--radius);font:600 14px/18px var(--font-sans)}
+/* Phones on their side (his iPhone 16 Pro shows 874 x 402): a slimmer place bar and a narrower picture column, so all
+   the tabs keep one row even with Duo and Trails (nine tabs) and nothing jumps when the source changes; bigger type on
+   the controls. Touch screens only, so a short desktop window keeps its layout. */
+@media (max-height:520px) and (pointer:coarse){
+  /* the place bar's buttons sit inside it with a little space above and below, not touching its edges */
+  #app{grid-template-rows:52px minmax(0,1fr) auto}
+  .place button{min-height:40px}
+  .place{padding:0 var(--s3)}
+  .place h1{font-size:17px;line-height:20px}
+  /* the nine tabs need about 393 px: the controls get 56% (about 400 on his phone), the picture and presets the rest */
+  main{grid-template-columns:minmax(0,44fr) minmax(0,56fr);gap:var(--s3);padding:var(--s3)}
+  .mems{gap:3px}
+  .mem{padding:0;align-items:center;justify-content:center}
+  /* each tab its own tile with a gap between, like the choice buttons, so the separate tabs read at a glance */
+  .tabs{gap:3px;border-bottom:0;padding-bottom:var(--s1)}
+  .tab{flex:1 1 auto;padding:0 1px;font-size:15px;letter-spacing:0;background:var(--control);border:0;border-radius:var(--radius);
+    box-shadow:inset 0 0 0 var(--stroke-hair) var(--line)}
+  .tab[aria-selected="true"]{background:var(--pressed);box-shadow:inset 0 calc(-1 * var(--stroke-mark)) 0 var(--area)}
+  .caption{font-size:13px}
+  .choice{grid-template-columns:84px minmax(0,1fr)}
+  /* up to five choices share one row (four or more at 14 px); six or more (the LFO targets) become a grid of four,
+     two readable rows instead of seven crushed into one */
+  .seg button{font-size:15px;line-height:18px;padding:var(--s1) 2px}
+  .seg:has(>button:nth-child(4)) button{font-size:14px}
+  .seg:has(>button:nth-child(6)){display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+  .seg:has(>button:nth-child(6))>button:last-child:nth-child(4n+3){grid-column:span 2}
+  /* fader names in plain case, so Saturation and Brightness fit under a fader a sixth of the page wide */
+  .fader .caption{font-size:12px;letter-spacing:0;text-transform:none;hyphens:auto;overflow-wrap:break-word}
+  .tbtn{font-size:15px}
+  .meta .title{font-size:15px}
+}
+/* Upright phones, touch screens only (from the upright review, simulated): longer fader travel, three faders a
+   row so a fourth keeps its width, taller pads, no wasted height in the place bar or presets, 13 px small text */
+@media (max-width:700px) and (min-height:521px) and (pointer:coarse){
+  #app{grid-template-rows:52px minmax(0,1fr) auto}
+  .place h1{font-size:17px}
+  .place button{min-height:40px}
+  .mems{min-height:var(--hit)}
+  /* tabs as separate tiles, as on a phone held sideways (his note: too close to tell apart) */
+  .tabs{gap:3px;border-bottom:0;padding-bottom:var(--s1)}
+  .tab{flex:1 1 auto;padding:0 1px;font-size:15px;letter-spacing:0;background:var(--control);border:0;border-radius:var(--radius);
+    box-shadow:inset 0 0 0 var(--stroke-hair) var(--line)}
+  .tab[aria-selected="true"]{background:var(--pressed);box-shadow:inset 0 calc(-1 * var(--stroke-mark)) 0 var(--area)}
+  .seg:has(>button:nth-child(4)) button{font-size:14px}
+  .fader{flex:0 1 calc((100% - 16px) / 3);height:170px}
+  .pads{height:auto;min-height:220px;flex:1}
+  .caption,.morenote,.pad .edge{font-size:13px}
+  .seg button{padding:var(--s1) 2px;letter-spacing:-.01em}
+}
+/* the narrowest upright phones: four choices to a row at 13 px, so Difference fits */
+@media (max-width:395px) and (min-height:521px) and (pointer:coarse){ .seg:has(>button:nth-child(4)) button{font-size:13px} }
+/* Upright iPad and other upright tablets: one column, the picture on top at up to 38% of the height, then the
+   controls with tall faders and pads, instead of two columns with a tiny picture and empty space below */
+@media (min-width:701px) and (max-width:1024px) and (orientation:portrait) and (pointer:coarse){
+  main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  .frame{max-height:38vh}
+  .mems{max-height:64px}
+  .mem small{display:none}
+  .faders{height:280px}
+  .pads{height:320px}
+  .fader .caption{text-transform:none;letter-spacing:0}
+}

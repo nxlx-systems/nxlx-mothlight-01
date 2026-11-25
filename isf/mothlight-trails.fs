@@ -6,7 +6,7 @@
         "Filter",
         "Feedback"
     ],
-    "COST": "medium: six texture reads and one hue turn a pixel in the first pass, one read in the second, plus up to three history reads for Echo and Smear",
+    "COST": "medium: six texture reads and one hue turn a pixel in the first pass, one read in the second, plus one read of a past frame for Frames or three history reads for Smear",
     "INPUTS": [
         {
             "NAME": "inputImage",
@@ -73,8 +73,17 @@
             "LABEL": "Delay",
             "TYPE": "long",
             "VALUES": [0, 1],
-            "LABELS": ["Echo", "Smear"],
+            "LABELS": ["Frames", "Smear"],
             "DEFAULT": 0
+        },
+        {
+            "NAME": "frames",
+            "LABEL": "Frames",
+            "TYPE": "float",
+            "MIN": 2.0,
+            "MAX": 60.0,
+            "DEFAULT": 8.0,
+            "WHOLE": true
         },
         {
             "NAME": "echotime",
@@ -83,14 +92,6 @@
             "MIN": 0.05,
             "MAX": 1.5,
             "DEFAULT": 0.5
-        },
-        {
-            "NAME": "repeats",
-            "LABEL": "Repeats",
-            "TYPE": "long",
-            "VALUES": [1, 2, 3],
-            "LABELS": ["1", "2", "3"],
-            "DEFAULT": 2
         },
         {
             "NAME": "echo",
@@ -146,8 +147,10 @@
 // An original shader written for Mothlight No.01 and nxlx.mastercontrol.
 
 // The first pass draws the drift buffer: the last picture, moved, with the playing picture keyed over it. The second
-// pass shows it. The NXLX web runner defines NXLX_HISTORY and adds pastA to pastC, pictures from a few seconds of
-// history, for Echo and Smear. Other ISF hosts (Mastercontrol's node included) skip that code, and Amount does nothing.
+// pass shows it. The NXLX web runner adds two things of its own. NXLX_FRAMES: "delayed", the drift buffer as it was
+// Frames frames ago, at full size (the runner picks the frame; Frames itself is not read here). NXLX_HISTORY (WebGL 2):
+// pastA to pastC, soft pictures from up to a few seconds ago, for Smear. Other ISF hosts (Mastercontrol's node
+// included) skip that code, and Amount does nothing there.
 // Nothing here inverts brightness or hue: in a loop that would flip every frame.
 
 vec2 edge(vec2 q) {
@@ -171,21 +174,7 @@ vec3 hueDrift(vec3 c) {
 void main() {
     vec2 uv = isf_FragNormCoord;
     if (PASSINDEX == 1) {
-        vec3 cur = IMG_NORM_PIXEL(drift, uv).rgb;
-#ifdef NXLX_HISTORY
-        if (delaystyle == 0 && echo > 0.0) {
-            // Echo: copies of the picture from Time, twice Time and three times Time ago, each fainter, laid over the picture
-            vec3 ghost = IMG_NORM_PIXEL(pastA, uv).rgb * echo;
-            if (repeats >= 2) {
-                ghost = max(ghost, IMG_NORM_PIXEL(pastB, uv).rgb * echo * 0.6);
-            }
-            if (repeats >= 3) {
-                ghost = max(ghost, IMG_NORM_PIXEL(pastC, uv).rgb * echo * 0.36);
-            }
-            cur = max(cur, ghost);   // lighten: each copy keeps its shape instead of washing the picture out
-        }
-#endif
-        gl_FragColor = vec4(cur, 1.0);
+        gl_FragColor = vec4(IMG_NORM_PIXEL(drift, uv).rgb, 1.0);
         return;
     }
     // folding here, in the first pass, mirrors the playing picture and the trails together, and the loop stays symmetric
@@ -203,6 +192,13 @@ void main() {
     q = edge(q);
 
     vec3 back = IMG_NORM_PIXEL(drift, q).rgb;
+#ifdef NXLX_FRAMES
+    if (delaystyle == 0 && echo > 0.0) {
+        // Frames: the trails feed back from the last frame and from one Frames ago, blended by Amount, so the delayed
+        // picture comes through without the stutter of feeding back from it alone (that is Amount at the top)
+        back = mix(back, IMG_NORM_PIXEL(delayed, q).rgb, echo);
+    }
+#endif
 #ifdef NXLX_HISTORY
     if (delaystyle == 1 && echo > 0.0) {
         // Smear: frames from a third of Time, two thirds and all of Time ago, blended into the trails like a long exposure

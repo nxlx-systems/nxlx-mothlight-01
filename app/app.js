@@ -9,20 +9,22 @@
   const SHELL = /NXLXMothlight\//.test(navigator.userAgent);
   const SOURCES = {
     osc:     { name: 'Solo', button: 'Solo', file: 'mothlight-solo.fs', clock: 'rate', period: 100, pages: [
-      { label: 'Osc', longs: ['gen.wave', 'gen.form', 'gen.shape'], floats: ['gen.rate', 'gen.bands', 'gen.angle', 'gen.bend'] }] },
+      { label: 'Osc', longs: ['gen.wave', 'gen.form', 'gen.shape', 'gen.around'], floats: ['gen.rate', 'gen.bands', 'gen.angle', 'gen.bend', 'gen.glow'] }] },
     modular: { name: 'Duo', button: 'Duo', file: 'mothlight-duo.fs', clock: null, pages: [
       { label: 'Osc A', longs: ['gen.a_wave', 'gen.a_form'], floats: ['gen.a_rate', 'gen.a_freq', 'gen.a_angle'] },
       { label: 'Osc B', longs: ['gen.b_wave', 'gen.b_form'], floats: ['gen.b_rate', 'gen.b_freq', 'gen.b_angle'] },
       { label: 'Mix', longs: ['gen.mix_mode', 'gen.shape_kind'], floats: ['gen.mix_amt', 'gen.a_fm', 'gen.shape_size', 'gen.shape_soft'] }] },
     camera:  { name: 'Camera', button: 'Camera', pages: [] }
   };
+  // NDI in (the iOS app, where it is built in): a picture from another NDI source on the network, used like the camera
+  if (window.nxNdiIn) SOURCES.ndi = { name: 'NDI', button: 'NDI', pages: [] };
   const CROSSFADE = 2;   // seconds, between sources
   const FADE = 2;        // seconds, Fade out
   const LFO_PAGES = [
     { label: 'LFO', longs: ['rig.lfo1_to', 'rig.lfo1_shape', 'rig.lfo2_to', 'rig.lfo2_shape'], floats: ['rig.lfo1_rate', 'rig.lfo1_depth', 'rig.lfo2_rate', 'rig.lfo2_depth'] }
   ];
   const DRIFT_PAGES = [
-    { label: 'Trails', longs: ['drift.keyinto', 'drift.edges', 'drift.delaystyle', 'drift.repeats'], floats: ['drift.feed', 'drift.key', 'drift.sharpen', 'drift.echotime', 'drift.echo'] },
+    { label: 'Trails', longs: ['drift.keyinto', 'drift.edges', 'drift.delaystyle'], floats: ['drift.feed', 'drift.key', 'drift.sharpen', 'drift.frames', 'drift.echotime', 'drift.echo'] },
     { label: 'Move', longs: ['drift.mirror'], pads: [
       { x: 'drift.turn', y: 'drift.zoom', yFirst: true, label: 'Zoom and turn', top: 'In', bottom: 'Out', left: 'Left', right: 'Right' },
       { x: 'drift.shiftx', y: 'drift.shifty', label: 'Slide', top: 'Up', bottom: 'Down', left: 'Left', right: 'Right' }] }
@@ -40,9 +42,17 @@
   const LFO_TO = [['Off'], ['Zoom', 'drift', ['zoom'], 0.5], ['Turn', 'drift', ['turn'], 0.5], ['Bend', 'gen', ['a_fm', 'bend'], 0.5],
     ['Angle', 'gen', ['a_angle', 'angle'], 0.25, 0.25], ['Hue', 'colour', ['hue'], 0.25, 1], ['Key', 'drift', ['key'], 0.4]];
   // A fifth entry above marks a target that goes round in a circle, and how fast a ramp may take it round.
-  // A ramp on those loops for ever with no jump. The others have ends, so a ramp rises, then glides back in RAMP_BACK of its time
-  const RAMP_BACK = 0.15;
-  const ramp = x => { if (x < 1 - RAMP_BACK) return x / (1 - RAMP_BACK); const u = (x - 1 + RAMP_BACK) / RAMP_BACK; return 1 - u * u * (3 - 2 * u); };
+  // A ramp on those loops for ever with no jump. The others have ends, so a ramp rises over RAMP_RISE of its time and
+  // eases back in the rest (D50). Both turns are rounded: the rise starts and ends gently (over RAMP_SOFT of it, steady
+  // in between) and the way back is an S curve, so nothing ever changes direction at once and the return never slaps
+  const RAMP_RISE = 0.7, RAMP_SOFT = 0.15;
+  const ramp = x => {
+    if (x >= RAMP_RISE) { const u = (x - RAMP_RISE) / (1 - RAMP_RISE); return 1 - u * u * (3 - 2 * u); }
+    const u = x / RAMP_RISE, k = RAMP_SOFT, s = 1 / (1 - k);   // s: the steady slope that still ends at 1
+    if (u < k) return s * u * u / (2 * k);
+    if (u > 1 - k) return 1 - s * (1 - u) * (1 - u) / (2 * k);
+    return s * (u - k / 2);
+  };
   const lfoSpec = n => [
     { NAME: 'lfo' + n + '_to', LABEL: 'LFO ' + n + ' to', TYPE: 'long', VALUES: LFO_TO.map((_, k) => k), LABELS: LFO_TO.map(d => d[0]), DEFAULT: 0 },
     { NAME: 'lfo' + n + '_shape', LABEL: 'LFO ' + n + ' shape', TYPE: 'long', VALUES: [0, 1, 2], LABELS: ['Sine', 'Ramp up', 'Ramp down'], DEFAULT: 0 },
@@ -51,25 +61,32 @@
   // settings of the app itself, kept and shown like a shader's
   const RIG = { isf: { inputs: [{ NAME: 'cycle', LABEL: 'Hue cycle', TYPE: 'float', MIN: -0.2, MAX: 0.2, DEFAULT: 0 }].concat(lfoSpec(1), lfoSpec(2)) } };
   // Controls that have no effect in the current setting are dimmed, so nothing on a page is a dead end
-  const greyPalette = () => S.colour.values.palette === 0 && S.source !== 'camera';
+  // the camera and NDI in bring a picture of their own; the synth's own controls do nothing to it
+  const picture = () => S.source === 'camera' || S.source === 'ndi';
+  const greyPalette = () => S.colour.values.palette === 0 && !picture();
   const notColour = () => S.colour.values.mode !== 0;
-  // An LFO option that would do nothing right now. It can still be chosen, and it wakes when the setting changes
+  // An LFO option that would do nothing right now. It is greyed out and cannot be chosen (D43), and it wakes when the setting changes
   const lfoDead = k => {
     const to = LFO_TO[k];
     if (to.length < 2) return false;
     if (to[1] === 'drift') return !S.driftOn;
     if (to[1] === 'colour') return IDLE['colour.hue']();
-    if (S.source === 'camera') return true;
+    if (picture()) return true;
     return to[0] === 'Angle' && S.source === 'modular' && S.gen.values.a_form === 1;   // Solo's Angle still turns its rings
   };
   const lfoIdle = n => { const to = S.rig.values['lfo' + n + '_to']; return to === 0 || lfoDead(to); };
   // a ramp round a circle always goes the whole way round, so Depth has nothing to set
   const lfoLoops = n => S.rig.values['lfo' + n + '_shape'] !== 0 && LFO_TO[S.rig.values['lfo' + n + '_to']].length > 4;
   const DEAD_OPTION = { 'rig.lfo1_to': lfoDead, 'rig.lfo2_to': lfoDead };
+  // An option that is not offered at all right now (D49): Camera colour keeps a picture's own colours, so it is shown
+  // only for Camera and NDI. With Solo or Duo the picture is grey, and it was the same as Mono output
+  const HIDE_OPTION = { 'colour.palette': v => v === 0 && !picture() };
+  const smearing = () => Math.round(S.drift.values.delaystyle) === 1;
   const IDLE = {
-    'drift.echo': () => !S.drift.historySeconds,
-    'drift.echotime': () => !(S.drift.values.echo > 0) || !S.drift.historySeconds, 'drift.repeats': () => !(S.drift.values.echo > 0) || !S.drift.historySeconds,
+    'drift.echo': () => smearing() && !S.drift.canSmear,
+    'drift.echotime': () => !(S.drift.values.echo > 0) || !S.drift.canSmear, 'drift.frames': () => !(S.drift.values.echo > 0),
     'gen.a_angle': () => S.gen.values.a_form === 1, 'gen.b_angle': () => S.gen.values.b_form === 1,
+    'gen.around': () => S.gen.values.shape === 0, 'gen.glow': () => S.gen.values.shape === 0 || S.gen.values.around !== 1,
     'gen.shape_size': () => S.gen.values.shape_kind === 0, 'gen.shape_soft': () => S.gen.values.shape_kind === 0,
     'rig.lfo1_rate': () => lfoIdle(1), 'rig.lfo1_depth': () => lfoIdle(1) || lfoLoops(1), 'rig.lfo2_rate': () => lfoIdle(2), 'rig.lfo2_depth': () => lfoIdle(2) || lfoLoops(2),
     'rig.lfo1_shape': () => lfoIdle(1), 'rig.lfo2_shape': () => lfoIdle(2),
@@ -84,10 +101,17 @@
     get(k, d) { try { const v = localStorage.getItem(STORE + ':' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
     set(k, v) { if (store.frozen) return; try { localStorage.setItem(STORE + ':' + k, JSON.stringify(v)); } catch (e) {} }
   };
+  // The picture alone, for a second screen (the iOS app's output window opens index.html?out=1). It shares this device's
+  // storage with the controls, so it never writes to it, and it takes its settings from the controls through the app.
+  const OUT = new URLSearchParams(location.search).get('out') === '1';
+  if (OUT) { store.frozen = true; document.documentElement.classList.add('out'); }
+  // the iOS app's channel between the controls and the output screen (absent on the web and on Android)
+  const toShell = SHELL && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.mothlightScreen;
 
   // a message: problems stay until closed; good news and tips (note) fade after 8 seconds
   let msgTimer = 0;
   function say(text, note) {
+    if (OUT) { if (text) console.warn('screen: ' + text); return; }   // nothing is written over the picture on the screen
     const m = $('msg');
     if (text && note && !m.hidden && !m.classList.contains('note')) return;   // a problem stays until it is closed
     clearTimeout(msgTimer);
@@ -125,7 +149,7 @@
   const S = {
     source: 'osc', driftOn: true, detail: 0.5, rig: Object.assign({ values: MothlightCore.defaults(RIG.isf) }, RIG),
     gen: null, drift: null, colour: null, camStage: null, stages: {}, saved: {}, fade: null,
-    frozen: false, faded: false, black: false, level: 1, perform: false, autoDetail: true
+    frozen: false, faded: false, black: false, level: 1, perform: false, autoDetail: !OUT
   };
   let driftISF, colourISF, genISF = {};
 
@@ -142,8 +166,10 @@
     return S.stages[key];
   }
 
-  // Saved values are checked against what each stage takes, so a damaged save can never stop the picture
+  // Saved values are checked against what each stage takes, so a damaged save can never stop the picture.
+  // A setting the stage no longer has (Echo's Repeats, gone in 1.1.1) is dropped
   function checked(stage) {
+    for (const name in stage.values) if (!stage.isf.inputs.some(i => i.NAME === name)) delete stage.values[name];
     for (const spec of stage.isf.inputs) {
       if (spec.TYPE === 'image') continue;
       const v = stage.values[spec.NAME];
@@ -152,12 +178,26 @@
       else stage.values[spec.NAME] = Math.min(spec.MAX, Math.max(spec.MIN, spec.WHOLE ? Math.round(v) : v));
     }
   }
+  // Saves from before 1.1.1 (D48). Echo is gone and Frames took its stored value, 0. A save that had Echo playing
+  // (Amount up) becomes Smear, which also works in seconds from the same history and keeps its Time; one with Amount
+  // at 0 stays on 0, now Frames, the new default. Only those older saves carry Repeats, so that tells them apart.
+  function oldDelay(d) {
+    if (d && typeof d === 'object' && 'repeats' in d) {
+      if (Math.round(+d.delaystyle || 0) === 0 && +d.echo > 0) d.delaystyle = 1;
+      delete d.repeats;
+    }
+    return d;
+  }
+  // Camera colour keeps a picture's own colours, so it is only for Camera and NDI (D49): with Solo or Duo, a save or a
+  // switch of source that has it falls back to Spectrum
+  function fitPalette() { if (S.colour && S.colour.values.palette === 0 && !picture()) S.colour.values.palette = 1; }
 
   function endFade() {
     const f = S.fade; S.fade = null;
     engine.setChain(engine.chain.map(s => s === f ? f.b : s), true);
     f.free();
     if (S.source !== 'camera') stopCamera();
+    if (S.source !== 'ndi') stopNdiIn();
   }
   // What goes at the head of the chain: the new source, or a crossfade into it from the one playing
   function crossfadeTo(old, next) {
@@ -187,7 +227,7 @@
     if (/facing front/i.test(label)) return 'Front';
     return label.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)$/i, '') || 'Camera ' + (k + 1);
   }
-  function cameraFailed(e) { say('The camera did not start: ' + (e.message || e.name) + '. Allow the camera for this app, or choose another source.'); }
+  function cameraFailed(e) { say('The camera did not start: ' + String(e.message || e.name).replace(/\.+$/, '') + '. Allow the camera for this app, or choose another source.'); }
   // only one camera may be open at a time on many devices, so the old one closes first
   async function startCamera() {
     stopCamera();
@@ -227,8 +267,13 @@
       }
       // a camera that did not start is asked for again next time; meanwhile its stage shows black
       if (!camera.stream) await startCamera().catch(cameraFailed);
+      cameraNote();
       if (key !== S.source) { if (!S.fade) stopCamera(); return; }
       next = S.camStage;
+    } else if (key === 'ndi') {
+      if (!S.ndiStage) { S.ndiStage = engine.CameraStage(ndiIn.frame); S.ndiStage.mirror = false; }
+      startNdiIn();
+      next = S.ndiStage;
     } else {
       next = await stageFor(key);
       if (key !== S.source) return;
@@ -238,6 +283,7 @@
     S.gen = next;
     // leaving the camera turns it off, once a fade from it has finished
     if (key !== 'camera' && !S.fade) stopCamera();
+    if (key !== 'ndi' && !S.fade) stopNdiIn();
     if (!S.drift) {
       driftISF = driftISF || MothlightCore.parseISF(await isfText('mothlight-trails.fs'));
       S.drift = engine.Stage(driftISF, { history: 'drift' });
@@ -246,10 +292,11 @@
       colourISF = colourISF || MothlightCore.parseISF(await isfText('mothlight-colour.fs'));
       S.colour = engine.Stage(colourISF);
     }
-    if (keepValues && keepValues.drift) Object.assign(S.drift.values, keepValues.drift);
+    if (keepValues && keepValues.drift) Object.assign(S.drift.values, oldDelay(keepValues.drift));
     if (keepValues && keepValues.colour) Object.assign(S.colour.values, keepValues.colour);
     checked(S.rig); checked(S.drift); checked(S.colour);
     if (S.gen.isf) checked(S.gen);
+    fitPalette();
     S.drift.values.hueturn = 0;   // and so does this
     showDelay();
     // Mothlight.Trails carries on through a source change, so its trails fade across too
@@ -260,6 +307,7 @@
     chain.push(S.colour);
     engine.setChain(chain, true);
     $('name').textContent = SOURCES[S.source].name + (S.driftOn ? ' with trails' : '');
+    $('clear').classList.toggle('idle', !S.driftOn); $('clear').setAttribute('aria-disabled', String(!S.driftOn));
     buildTabs();
     save();
   }
@@ -284,9 +332,10 @@
     if (sourceChanged || !S.gen || engine.chain.indexOf(S.drift) < 0 === S.driftOn) await buildChain(snap);
     else {
       if (S.gen.values) Object.assign(S.gen.values, snap.gen || {});
-      Object.assign(S.drift.values, snap.drift || {}); Object.assign(S.colour.values, snap.colour || {});
+      Object.assign(S.drift.values, oldDelay(snap.drift) || {}); Object.assign(S.colour.values, snap.colour || {});
       checked(S.rig); checked(S.drift); checked(S.colour);
       if (S.gen.isf) checked(S.gen);
+      fitPalette();
       buildPage(); save();
     }
     showDelay();
@@ -324,18 +373,20 @@
     if (c.kind === 'long') {
       c.set = v => {
         stage.values[name] = v;
-        if (name === 'delaystyle') { showDelay(); queueMicrotask(buildPage); }   // Repeats belongs to Echo only
+        if (name === 'delaystyle') { showDelay(); queueMicrotask(buildPage); }   // Frames and Time each belong to one style
         changed();
       };
-      c.setNorm = n => c.set(spec.VALUES[Math.min(spec.VALUES.length - 1, Math.floor(n * spec.VALUES.length))]);
-      c.press = () => c.set(spec.VALUES[(spec.VALUES.indexOf(c.get()) + 1) % spec.VALUES.length]);
+      // a knob or a mapped button steps through the options on offer only (D49)
+      const offered = () => spec.VALUES.filter(v => !(HIDE_OPTION[id] && HIDE_OPTION[id](v)));
+      c.setNorm = n => { const o = offered(); c.set(o[Math.min(o.length - 1, Math.floor(n * o.length))]); };
+      c.press = () => { const o = offered(); c.set(o[(o.indexOf(c.get()) + 1) % o.length]); };
     } else {
       const curve = curveOf(name, spec);
       c.norm = () => curve.norm(c.get());
       c.set = v => {
         v = Math.min(spec.MAX, Math.max(spec.MIN, v));
         stage.values[name] = spec.WHOLE ? Math.round(v) : v;
-        if (name === 'echo' || name === 'echotime') showDelay();
+        if (name === 'echo' || name === 'echotime' || name === 'frames') showDelay();
         changed();
       };
       c.setNorm = n => c.set(curve.value(n));
@@ -344,16 +395,26 @@
     }
     return all[name] = c;
   }
-  // the chip shows Echo or Smear and its time, only while Amount is up
+  // the chip shows Frames and how many, or Smear and its time, only while Amount is up and the style can play here
   function showDelay() {
     const d = S.drift && S.drift.values, chip = $('chipDelay');
-    chip.hidden = !(d && d.echo > 0 && S.driftOn && S.drift.historySeconds);
-    if (d) chip.textContent = (Math.round(d.delaystyle) === 1 ? 'Smear ' : 'Echo ') + (+d.echotime).toFixed(+d.echotime < 1 ? 2 : 1) + ' s';
+    const smear = d && Math.round(d.delaystyle) === 1;
+    chip.hidden = !(d && d.echo > 0 && S.driftOn && (!smear || S.drift.canSmear));
+    if (d) chip.textContent = smear ? 'Smear ' + UNITS.echotime(+d.echotime) : 'Frames ' + playedFrames(+d.frames).replace(/ f/, '');
   }
 
+  // Numbers a VJ can read (D46): every fader shows 0 to 100 of its own travel, and one whose middle is its rest point
+  // (Speed both ways, Hue cycle) shows -100 to 100 with 0 there. Where a real unit means more, it shows that instead:
+  // Time in seconds, Frames in frames. A whole-number setting shows its own number.
+  // Frames shows the frames that really play: a big drawing holds fewer back (5 at 1920 x 1080), and then it says max
+  const playedFrames = v => { const m = S.drift && S.drift.framesMax, n = Math.round(v); return m && n > m ? m + ' f max' : n + ' f'; };
+  const UNITS = { echotime: v => v.toFixed(2) + ' s', frames: playedFrames };
+  const travel = c => c.zero ? Math.round((c.norm() - 0.5) * 200) : Math.round(c.norm() * 100);
   function fmt(c) {
-    const v = c.get(), span = c.spec.MAX - c.spec.MIN;
-    return c.spec.WHOLE ? String(v) : span <= 0.2 ? v.toFixed(3) : span <= 3 ? v.toFixed(2) : v.toFixed(1);
+    const unit = UNITS[c.id.slice(c.id.indexOf('.') + 1)];
+    if (unit) return unit(c.get());
+    if (c.spec.WHOLE) return String(Math.round(c.get()));
+    return String(travel(c) || 0);
   }
   // A second tap straight after the first puts a fader or pad back
   function tapTwice(rest) {
@@ -377,7 +438,10 @@
     const c = param(id);
     if (!c) return null;
     const el = document.createElement('div'); el.className = 'fader';
-    const num = document.createElement('span'); num.className = 'num';
+    // the number is also the way back (D51): tap it and the fader returns to where it starts
+    const num = document.createElement('button'); num.type = 'button'; num.className = 'num back';
+    num.setAttribute('aria-label', 'Put ' + c.spec.LABEL + ' back');
+    num.onclick = e => { if (learnPick(c, track, e) || asleep(track)) return; c.latch = false; c.rest(); };
     const track = document.createElement('div'); track.className = 'track';
     const fill = document.createElement('i'); fill.className = 'fill';
     const cap = document.createElement('i'); cap.className = 'cap';
@@ -391,19 +455,24 @@
       cap.style.top = (100 - n * 100) + '%';
       fill.style.top = (100 - b * 100) + '%'; fill.style.bottom = (a * 100) + '%';
       num.textContent = fmt(c);
-      track.setAttribute('aria-valuenow', String(Math.round(n * 100))); track.setAttribute('aria-valuetext', num.textContent);
+      num.classList.toggle('moved', Math.abs(c.get() - c.spec.DEFAULT) > 1e-6);   // underlined while there is somewhere to go back to
+      // a screen reader hears what the fader shows, with its unit in full
+      track.setAttribute('aria-valuenow', String(Math.round(n * 100)));
+      track.setAttribute('aria-valuetext', num.textContent.replace(/ f( max)?$/, ' frames$1').replace(/ s$/, ' seconds'));
     }
     track.addEventListener('keydown', e => {
       const d = nudgeKey(e), ends = { Home: 0, End: 1 }[e.key], back = e.key === 'Delete' || e.key === 'Backspace';
       if (!d && ends === undefined && !back) return;
       e.preventDefault();
       if (learnPick(c, track, e)) return;
+      if (asleep(track)) return;
       c.latch = false;
       if (back) c.rest(); else c.setNorm(ends !== undefined ? ends : clamp01(c.norm() + d));
     });
     const twice = tapTwice(c.rest);
     track.addEventListener('pointerdown', e => {
       if (learnPick(c, track, e)) return;
+      if (asleep(track)) return;
       track.setPointerCapture(e.pointerId); track.classList.add('held'); c.latch = false;
       const r = track.getBoundingClientRect();
       const move = ev => c.setNorm(1 - Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height)));
@@ -418,7 +487,10 @@
     const cx = param(p.x), cy = param(p.y);
     if (!cx || !cy) return null;
     const box = document.createElement('div'); box.className = 'padbox';
-    const nums = document.createElement('div'); nums.className = 'padnums';
+    // the pad's name and numbers are also the way back (D51): tap them and the pad centres
+    const nums = document.createElement('button'); nums.type = 'button'; nums.className = 'padnums back';
+    nums.setAttribute('aria-label', 'Centre ' + p.label);
+    nums.onclick = e => { if (learnPick(cx, pad, e, cy) || asleep(pad)) return; cx.latch = cy.latch = false; cx.set(0); cy.set(0); };
     const lab = document.createElement('span'); lab.className = 'caption'; lab.textContent = p.label;
     const num = document.createElement('span'); num.className = 'num-small';
     nums.append(lab, num);
@@ -433,9 +505,11 @@
     pad.setAttribute('aria-label', p.label + '. Arrow keys move it, Delete centres it');
     function draw() {
       dot.style.left = (cx.norm() * 100) + '%'; dot.style.top = (100 - cy.norm() * 100) + '%';
-      // in the pad's own words and in the order its name gives: "Out 0.012 · Right 0.002"
-      const say = (c, minus, plus) => { const v = c.get(), t = fmt({ get: () => Math.abs(v), spec: c.spec }); return !+t ? t : v < 0 ? minus + ' ' + t : plus + ' ' + t; };
+      // in the pad's own words and in the order its name gives, -100 to 100 on each axis with 0 at the centre (D46):
+      // "In 13 · Right 5"
+      const say = (c, minus, plus) => { const k = travel(c); return !k ? '0' : k < 0 ? minus + ' ' + -k : plus + ' ' + k; };
       const h = say(cx, p.left, p.right), v = say(cy, p.bottom, p.top);
+      nums.classList.toggle('moved', h !== '0' || v !== '0');
       num.textContent = '';
       for (const part of p.yFirst ? [v, h] : [h, v]) { const s = document.createElement('span'); s.textContent = part; num.append(s); }
     }
@@ -469,7 +543,7 @@
     const seg = document.createElement('div'); seg.className = 'seg';
     const btns = c.spec.VALUES.map((v, k) => {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = c.spec.LABELS[k];
-      b.onclick = e => { if (learnPick(c, seg, e)) return; c.set(v); };
+      b.onclick = e => { if (learnPick(c, seg, e)) return; if (asleep(b)) return; c.set(v); };
       seg.append(b); return b;
     });
     const draw = () => {
@@ -477,6 +551,7 @@
       btns.forEach((b, k) => {
         b.setAttribute('aria-pressed', String(c.spec.VALUES[k] === Math.round(c.get())));
         if (DEAD_OPTION[id]) b.classList.toggle('idle', DEAD_OPTION[id](c.spec.VALUES[k]));
+        if (HIDE_OPTION[id]) b.hidden = HIDE_OPTION[id](c.spec.VALUES[k]);
       });
     };
     views.push(draw); row.append(lab, seg); draw();
@@ -489,7 +564,7 @@
     const seg = document.createElement('div'); seg.className = 'seg local';
     const btns = options.map(([text, v]) => {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = text;
-      b.onclick = () => set(v); seg.append(b); return [b, v];
+      b.onclick = () => { if (!asleep(b)) set(v); }; seg.append(b); return [b, v];
     });
     btns.forEach(([b, v]) => b.setAttribute('aria-pressed', String(get() === v)));
     row.append(lab, seg); return row;
@@ -505,13 +580,16 @@
     current = Math.max(0, pages.findIndex(p => p.label === open || p.label === SAME_PAGE[open]));
     const tabs = $('tabs'); tabs.textContent = '';
     pages.forEach((p, k) => {
+      if (p.special === 'output') return;   // Output has its own button in the place bar, beside Menu
       const t = document.createElement('button'); t.type = 'button'; t.className = 'tab'; t.setAttribute('role', 'tab');
       t.textContent = p.label; t.setAttribute('aria-selected', String(k === current));
       t.onclick = () => { open = p.label; store.set('page', open); buildTabs(); $('page').scrollTop = 0; };
       tabs.append(t);
     });
+    $('outOpen').setAttribute('aria-pressed', String(pages[current] && pages[current].special === 'output'));
     buildPage();
   }
+  $('outOpen').onclick = () => { open = 'Output'; store.set('page', open); buildTabs(); $('page').scrollTop = 0; };
   const showing = special => pages[current] && pages[current].special === special;
   function buildPage() {
     views = []; queueMicrotask(() => { if (cues.page) cues.page(); });   // the scroll cue reads the page once it is built
@@ -522,29 +600,39 @@
         makeLocalChoice('Source', Object.keys(SOURCES).map(k => [SOURCES[k].button, k]), () => S.source, v => { if (v !== S.source || (v === 'camera' && !camera.stream)) { S.source = v; buildChain(); } }),
         makeLocalChoice('Trails', [['On', true], ['Off', false]], () => S.driftOn, v => { S.driftOn = v; buildChain(); }));
       if (S.source === 'camera' && camera.list.length) box.append(makeLocalChoice('Camera', camera.list.map((d, k) => [cameraName(d, k), d.deviceId]), () => camera.id, pickCamera));
+      if (S.source === 'ndi' && ndiIn.list.length) box.append(makeLocalChoice('From', ndiIn.list.map(n => [n, n]), () => ndiIn.name, pickNdiIn));
+      if (S.source === 'ndi') box.append(discoveryChoice());
       box.append(makeRandomRow());   // Clear, in the bottom bar, wipes the trails; there is no reset of every setting (D33)
       page.append(box);
+      if (S.source === 'ndi') page.append(ndiInNote());
       return;
     }
-    (p.longs || []).filter(id => id !== 'drift.repeats' || Math.round(S.drift.values.delaystyle) === 0).forEach(id => { const c = makeChoice(id); if (c) box.append(c); });
+    (p.longs || []).forEach(id => { const c = makeChoice(id); if (c) box.append(c); });
     if (p.special === 'output') {
       const detail = makeLocalChoice('Detail', DETAIL, () => S.detail, v => { S.detail = v; slow = 0; engine.setScale(v); buildPage(); save(); });
       detail.classList.toggle('idle', videoOut.on);   // Video out holds its own size, and the setting comes back after
       box.append(detail);
       if (window.nxOut) box.append(makeLocalChoice('Video out', [['Off', false], ['On', true]], () => videoOut.on, setVideoOut));
+      if (window.nxNdi) box.append(makeLocalChoice('NDI\u00ae out', [['Off', false], ['On', true]], () => ndiOut.on, setNdiOut));
+      if (window.nxNdi && window.nxNdiIn && window.nxNdiIn.setDiscovery) box.append(discoveryChoice());
     }
     if (box.children.length) page.append(box);
     if (p.special === 'output') {
       const where = document.createElement('p'); where.className = 'num-small'; where.id = 'outInfo'; where.hidden = !videoOut.on;
       where.textContent = videoOut.text(); page.append(where);
+      if (window.nxNdi) page.append(ndiNote());
     }
     if (p.floats) {
       const faders = document.createElement('div'); faders.className = 'faders';
-      p.floats.forEach(id => { const f = makeFader(id); if (f) faders.append(f); });
+      // only the delay fader of the style chosen: Frames for Frames, Time for Smear
+      const other = id => id === (smearing() ? 'drift.frames' : 'drift.echotime');
+      p.floats.filter(id => !other(id)).forEach(id => { const f = makeFader(id); if (f) faders.append(f); });
       if (p.special === 'output') {   // beside the faders, so the page stays the same height with Video out on
         const info = document.createElement('p'); info.className = 'num-small'; info.id = 'renderInfo';
-        const gi = engine.info(), sz = engine.size;
-        info.textContent = 'Drawing ' + sz[0] + ' x ' + sz[1] + ' on ' + gi.gpu + ', WebGL ' + gi.webgl + ', ' + gi.precision + ' precision. ' + (S.drift && S.drift.historySeconds ? 'Echo and Smear keep the last ' + S.drift.historySeconds.toFixed(0) + ' seconds.' : 'Echo and Smear need WebGL 2.');
+        const gi = engine.info(), sz = engine.size, dr = S.drift;
+        info.textContent = 'Drawing ' + sz[0] + ' x ' + sz[1] + ' on ' + gi.gpu + ', WebGL ' + gi.webgl + ', ' + gi.precision + ' precision. '
+          + (dr && dr.framesMax ? 'Frames reaches up to ' + Math.min(60, dr.framesMax) + ' frames back at this size. ' : '')
+          + (dr && dr.historySeconds ? 'Smear keeps the last ' + dr.historySeconds.toFixed(0) + ' seconds.' : 'Smear needs WebGL 2.');
         faders.append(info);
       }
       page.append(faders);
@@ -593,16 +681,25 @@
 
   // ---- transport ---------------------------------------------------------------------------------------------
   function action(name, fn) { const b = $(name); control('act:' + name, { kind: 'button', press: fn }); b.addEventListener('click', e => { if (learnPick(controls['act:' + name], b, e)) return; fn(); }); }
-  action('freeze', () => { S.frozen = !S.frozen; $('freeze').setAttribute('aria-pressed', String(S.frozen)); $('chipFrozen').hidden = !S.frozen; });
-  action('fade', () => { S.faded = !S.faded; $('fade').setAttribute('aria-pressed', String(S.faded)); $('chipFaded').hidden = !S.faded; });
-  action('clear', () => engine.clear());
+  // the three states are set, never only flipped, so a second screen can be given them as they are
+  function setFrozen(v) { S.frozen = v; $('freeze').setAttribute('aria-pressed', String(v)); $('chipFrozen').hidden = !v; relay(true); }
+  function setFaded(v) { S.faded = v; $('fade').setAttribute('aria-pressed', String(v)); $('chipFaded').hidden = !v; relay(true); }
+  let setBlack = () => {};
+  action('freeze', () => setFrozen(!S.frozen));
+  action('fade', () => setFaded(!S.faded));
+  // Clear wipes the trails and keeps them wiped for a moment, so the clean picture shows before they build again
+  // (wiped for one frame only, they grew back before anyone could see it). Nothing to clear while Trails are off.
+  const CLEAR_HOLD = 300;
+  let clearHold = 0;
+  function clearTrails() { clearHold = performance.now() + CLEAR_HOLD; engine.clear(); }
+  action('clear', () => { if (!S.driftOn) return; clearTrails(); relayClear(); });
   action('random', randomise);
   action('perform', () => setPerform(!S.perform));
   // Blackout: hold to black, tap to come back
   (function () {
     const b = $('black'), bar = b.querySelector('.hold'); let timer = 0, t0 = 0;
     const anim = () => { if (!timer) return; bar.style.width = Math.min(100, (performance.now() - t0) / 6) + '%'; requestAnimationFrame(anim); };
-    const setBlack = v => { S.black = v; S.level = v || S.faded ? 0 : 1; $('chipState').textContent = v ? 'Blackout' : 'Live'; $('chipState').className = 'chip ' + (v ? 'prob' : 'live'); b.setAttribute('aria-pressed', String(v)); };
+    setBlack = v => { S.black = v; S.level = v || S.faded ? 0 : 1; $('chipState').textContent = v ? 'Blackout' : 'Live'; $('chipState').className = 'chip ' + (v ? 'prob' : 'live'); b.setAttribute('aria-pressed', String(v)); relay(true); };
     control('act:black', { kind: 'button', press: () => setBlack(!S.black) });
     b.addEventListener('pointerdown', e => {
       if (learnPick(controls['act:black'], b, e)) return;
@@ -626,7 +723,7 @@
   // with Reduce motion set on the device, Random leaves the LFOs alone until it is turned on here
   const calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const randomIn = Object.assign({ osc: true, trails: true, transform: true, colour: true, lfo: !calm }, store.get('random', null));
-  const randomLive = g => g === 'osc' ? S.source !== 'camera' : g === 'trails' || g === 'transform' ? S.driftOn : true;
+  const randomLive = g => g === 'osc' ? !picture() : g === 'trails' || g === 'transform' ? S.driftOn : true;
   const randomOn = g => randomIn[g] === true && randomLive(g);
   function showRandom() { $('random').classList.toggle('idle', !RANDOM_GROUPS.some(g => randomOn(g[0]))); }
   function makeRandomRow() {
@@ -657,13 +754,21 @@
       const mixed = param('gen.mix_mode'), dims = mixed && mixed.get() >= 2;   // Multiply and Difference are dark enough without a window
       if (dims || chance(0.6)) { off('gen.shape'); off('gen.shape_kind'); }
       const win = param('gen.shape_size'); if (win) win.set(between(0.7, 1));   // a small window leaves the frame mostly black
+      // Solo's window is a fixed size, and with Black around it the frame is mostly black (brightness 8 to 22 of 255
+      // on the Fire), so a Random that keeps a window keeps a glow outside it (D44), never a faint one (D47). Black
+      // outside stays his to choose.
+      if (S.source === 'osc' && S.gen.values.shape !== 0) {
+        const around = param('gen.around'), glow = param('gen.glow');
+        if (around) around.set(1);
+        if (glow) glow.set(between(0.45, 0.85));
+      }
       const rate = param('gen.rate'); if (rate) rate.set(between(0.05, 0.3));
     }
     if (randomOn('trails')) {
       roll('drift.edges');
       const lights = S.gen.values.wave !== 3 && chance(0.25);   // keying into the lights swaps them for fading trails, so only the very brightest go
       Object.assign(d, { feed: between(0.86, 0.98), key: lights ? between(0.05, 0.15) : between(0.15, 0.4), keyinto: lights ? 1 : 0, sharpen: chance(0.5) ? 0 : between(0.1, 0.6) });
-      Object.assign(d, { echo: chance(0.5) ? 0 : between(0.4, 0.9), echotime: between(0.2, 1), repeats: 1 + Math.floor(Math.random() * 3) });
+      Object.assign(d, { echo: chance(0.5) ? 0 : between(0.4, 0.9), echotime: between(0.2, 1), frames: 3 + Math.floor(Math.random() * 18) });
       showDelay();
     }
     if (randomOn('transform')) {
@@ -672,7 +777,7 @@
     }
     if (randomOn('colour')) {
       // Add, Multiply and Heat already run bright, and would blow out at the usual level
-      if (S.source !== 'camera') S.colour.values.palette = 1 + Math.floor(Math.random() * 3);
+      if (!picture()) S.colour.values.palette = 1 + Math.floor(Math.random() * 3);
       const mix = param('gen.mix_mode'), hot = S.colour.values.palette === 3 || (mix && (mix.get() === 1 || mix.get() === 2));
       Object.assign(S.colour.values, { hue: Math.random(), spread: between(0.4, 1.1), contrast: hot ? 1 : 1.25, bright: hot ? 0.85 : S.source === 'modular' ? 1.05 : 1.1, sat: between(0.7, 1.1) });
       r.cycle = chance(0.6) ? 0 : (chance(0.5) ? -1 : 1) * between(0.01, 0.05);
@@ -718,6 +823,12 @@
   const rootEl = document.documentElement;
   const goFull = rootEl.requestFullscreen || rootEl.webkitRequestFullscreen;
   const isFull = () => document.fullscreenElement || document.webkitFullscreenElement;
+  // the NXLX Panel launcher, when the Android app finds it on this device: back to the node's panel, Mothlight keeps running
+  if (SHELL && window.nxPanel && nxPanel.here()) {
+    $('panel').hidden = false;
+    $('panel').onclick = () => nxPanel.open();
+    window.mothlightPanelFailed = () => say('The NXLX Panel did not open. Open it from its icon.');
+  }
   const showFull = () => { $('full').hidden = SHELL || !goFull || !!isFull() || matchMedia('(display-mode: fullscreen)').matches; };
   $('full').onclick = async () => {
     try { const p = goFull.call(rootEl); if (p && p.then) await p; } catch (e) {}
@@ -730,6 +841,10 @@
   const midiHeld = {};
   let midiMap = store.get('midi', {}), learning = false, learnTarget = null, learnNext = null, learntKey = null, ports = 0;
   const unmark = () => document.querySelectorAll('.target').forEach(x => x.classList.remove('target'));
+  // A greyed-out control does nothing right now, so it does not move either (his word, D43): touch, mouse, keys and
+  // MIDI all leave it alone until it wakes. MIDI learn can still pick it, so a knob can be mapped ahead of time.
+  function asleep(el) { return !learning && !!el.closest('.idle'); }
+  function idleNow(c) { return !!(c && c.id && IDLE[c.id] && IDLE[c.id]()); }
   // next: the second axis of a pad, which takes the next knob moved
   function learnPick(c, el, e, next) {
     if (!learning || !c) return false;
@@ -773,7 +888,7 @@
     }
     const id = midiMap[key];
     const c = !id ? null : id.indexOf(':') > 0 ? controls[id] : param(id);
-    if (!c) return;
+    if (!c || idleNow(c)) return;
     if (key.startsWith('cc:') && c.setNorm) {
       // pick-up: a knob takes over only once it passes the value the control already has
       if (!c.latch) { if (c.kind === 'long' || Math.abs(val - c.norm()) < 0.04) c.latch = true; else return; }
@@ -832,6 +947,98 @@
   }
   // from the shell, whenever a mixer connects or leaves
   window.nxOutClients = n => { videoOut.clients = n; showVideoOut(); };
+
+  // ---- NDI out (the iOS app, where it is built in): the picture as an NDI source called Mothlight ----------------
+  // The app reads the picture after each drawn frame and sends it; the page only turns it on and off and says who
+  // is watching. NDI asks for a link to ndi.video and its trademark notice near the setting.
+  const ndiOut = { on: false, clients: 0 };
+  function ndiNote() {
+    const state = ndiOut.on ? 'Sending as Mothlight on this network. ' + (ndiOut.clients === 1 ? '1 receiver.' : ndiOut.clients + ' receivers.') + ' ' : '';
+    const p = ndiMark(state); p.id = 'ndiInfo';
+    return p;
+  }
+  function showNdiOut() {
+    const c = $('chipOut');
+    c.hidden = !ndiOut.on; c.textContent = ndiOut.clients ? 'NDI ' + ndiOut.clients : 'NDI';
+    c.className = ndiOut.clients ? 'chip live' : 'chip';
+    const old = $('ndiInfo'); if (old) old.replaceWith(ndiNote());
+  }
+  function setNdiOut(on) {
+    if (!window.nxNdi) return;
+    if (on) window.nxNdi.start(); else window.nxNdi.stop();
+    ndiOut.on = on; ndiOut.clients = 0;
+    store.set('ndiOut', on);
+    showNdiOut();
+    if (showing('output')) buildPage();
+  }
+  // from the app, whenever a receiver connects or leaves
+  window.nxNdiClients = n => { ndiOut.clients = n; showNdiOut(); };
+
+  // ---- NDI in (the iOS app, where it is built in): another NDI source as the picture, like the camera ------------
+  // The app finds the sources on the network, receives the chosen one and keeps its newest frame; the page asks for
+  // it once per drawn frame and hands the raw pixels to the same stage the camera uses. The screen page reads the same
+  // frames, so a connected screen shows NDI in too; only the controls start and stop the receiving.
+  const ndiIn = { frame: { readyState: 0, videoWidth: 0, videoHeight: 0, pixels: null, fresh: false },
+    seq: 0, busy: false, on: false, list: [], name: OUT ? null : store.get('ndiSource', null) };
+  function startNdiIn() {
+    if (OUT || !window.nxNdiIn || ndiIn.on) return;
+    ndiIn.on = true; window.nxNdiIn.start(ndiIn.name || '');
+  }
+  function stopNdiIn() {
+    if (OUT || !window.nxNdiIn || !ndiIn.on) return;
+    ndiIn.on = false; window.nxNdiIn.stop();
+  }
+  function pickNdiIn(name) {
+    ndiIn.name = name; store.set('ndiSource', name);
+    if (window.nxNdiIn && !OUT) { ndiIn.on = true; window.nxNdiIn.start(name); }
+    buildPage();
+  }
+  // from the app: the sources it can see, and the one it is receiving
+  window.nxNdiSources = (list, current) => {
+    ndiIn.list = Array.isArray(list) ? list : []; if (current) ndiIn.name = current;
+    if (S.source === 'ndi' && showing('source')) buildPage();
+  };
+  function pullNdiIn() {
+    const st = S.ndiStage;
+    if (!st || ndiIn.busy || !(S.gen === st || (S.fade && (S.fade.a === st || S.fade.b === st)))) return;
+    ndiIn.busy = true;
+    fetch('/__ndiin?seq=' + ndiIn.seq).then(r => {
+      if (r.status !== 200) return;
+      const size = (r.headers.get('X-Size') || '').split('x').map(Number), seq = Number(r.headers.get('X-Seq'));
+      return r.arrayBuffer().then(b => {
+        if (!(size[0] > 0 && size[1] > 0) || b.byteLength < size[0] * size[1] * 4) return;
+        const f = ndiIn.frame;
+        f.pixels = new Uint8Array(b, 0, size[0] * size[1] * 4); f.videoWidth = size[0]; f.videoHeight = size[1];
+        f.readyState = 4; f.fresh = true; ndiIn.seq = seq;
+      });
+    }).catch(() => {}).then(() => { ndiIn.busy = false; });
+  }
+  // NDI asks for its trademark notice and a link to ndi.video wherever NDI is chosen
+  function ndiMark(before) {
+    const p = document.createElement('p'); p.className = 'num-small';
+    const a = document.createElement('a'); a.href = 'https://ndi.video/'; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'ndi.video';
+    p.append((before || '') + 'NDI\u00ae is a registered trademark of Vizrt NDI AB, ', a, '.');
+    return p;
+  }
+  // An NDI Discovery Server: on a network that uses one, NDI sources register with it and do not announce themselves,
+  // so the app needs its address to find them (and to be found). Kept on this device by the app, not in backups.
+  function discoveryChoice() {
+    const now = (window.nxNdiIn && window.nxNdiIn.discovery) || '';
+    return makeLocalChoice('Discovery', [[now || 'None', 'set']], () => '', () => {
+      const typed = prompt('NDI Discovery Server address, if your network uses one (for example 10.0.0.20). Leave it empty for none.', now);
+      if (typed === null) return;
+      const a = typed.trim();
+      if (a && !/^[A-Za-z0-9.:\-\[\],]+$/.test(a)) { say('That is not an address: use numbers like 10.0.0.20, or a computer name.'); return; }
+      if (a === now) return;
+      window.nxNdiIn.setDiscovery(a);
+      buildPage();
+      say('Saved. Close Mothlight and open it again to use the new discovery setting.');
+    });
+  }
+  function ndiInNote() {
+    const p = ndiMark(ndiIn.list.length ? '' : 'Looking for NDI sources on this network. ');
+    p.id = 'ndiInInfo'; return p;
+  }
   // Two workers turn frames into JPEG, so the drawing thread only reads the picture out. Nothing runs until a mixer is
   // pulling. A frame that finishes after a newer one is dropped.
   function outWorker() {
@@ -957,9 +1164,12 @@
       if (S.fade.amount >= 1) endFade();
     }
     lastNow = now;
+    pullNdiIn();
     if (!S.black) S.level = Math.min(1, Math.max(0, S.level + (S.faded ? -1 : 1) * step / FADE));
     engine.level = S.level;
+    if (performance.now() < clearHold) engine.clear();
     try { engine.render(t, S.frozen); sendFrame(now); } catch (e) { say('Drawing stopped: ' + e.message); return; }
+    relay(false);
     frames++;
     if (now - fpsT >= 1000) {
       const fps = frames * 1000 / (now - fpsT); frames = 0; fpsT = now;
@@ -1010,7 +1220,23 @@
     if (on) { store.set('helpSeen', true); $('helpBody').scrollTop = 0; $('helpBody').focus({ preventScroll: true }); cues.help(); } else $('helpOpen').focus();
   }
   $('helpVersion').textContent = self.MOTHLIGHT_VERSION || '';
-  $('helpOpen').onclick = () => setHelp(true);
+  // Menu: a short list that opens Help at the part chosen
+  function setMenu(on) {
+    $('menu').hidden = !on; $('helpOpen').setAttribute('aria-expanded', String(on));
+    if (on) $('menu').querySelector('button').focus();
+  }
+  $('helpOpen').onclick = () => setMenu($('menu').hidden);
+  $('menu').querySelectorAll('button').forEach(b => b.onclick = () => {
+    setMenu(false); setHelp(true);
+    const to = $(b.dataset.to);
+    if (to && b.dataset.to !== 'helpTitle') { const hb = $('helpBody'); hb.scrollTop += to.getBoundingClientRect().top - hb.getBoundingClientRect().top - 8; }
+  });
+  $('menu').addEventListener('keydown', e => {
+    const items = [...$('menu').querySelectorAll('button')], i = items.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.preventDefault(); setMenu(false); $('helpOpen').focus(); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus(); }
+  });
+  document.addEventListener('pointerdown', e => { if (!$('menu').hidden && !e.target.closest('.menuwrap')) setMenu(false); });
   $('helpClose').onclick = () => setHelp(false);
   $('help').addEventListener('keydown', e => {
     if (e.key === 'Escape') { e.preventDefault(); setHelp(false); }
@@ -1021,7 +1247,7 @@
     }
   });
   $('help').addEventListener('click', e => { if (e.target === $('help')) setHelp(false); });
-  if (!store.get('helpSeen', false)) setHelp(true);
+  if (!OUT && !store.get('helpSeen', false)) setHelp(true);
 
   // ---- updates and backups, the way Phase Ten Scorekeeper does them -------------------------------------------
   // The installed app changes only when Update now is tapped (see sw.js). A backup is everything this app stores in
@@ -1052,7 +1278,7 @@
     else showReady(r);
   };
   // what belongs to this one device stays out of a backup: install state, the chosen camera, Video out, Help seen
-  const DEVICE_ONLY = ['installed', 'camera', 'videoOut', 'helpSeen', 'lost'];
+  const DEVICE_ONLY = ['installed', 'camera', 'videoOut', 'ndiOut', 'ndiSource', 'helpSeen', 'lost'];
   function ownKeys() {
     const ks = [];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(STORE + ':') && !DEVICE_ONLY.includes(k.slice(STORE.length + 1))) ks.push(k); } } catch (e) {}
@@ -1169,11 +1395,70 @@
     navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => { $('chipOffline').hidden = false; }).catch(() => {});
   }
 
+  // ---- a second screen (the iOS app) ---------------------------------------------------------------------------
+  // The controls send one kind of message, always complete: the settings and the Blackout, Fade and Freeze states as
+  // they are, never a toggle, so a screen that reloads or is plugged in again cannot be out of step. About 30 a second,
+  // and at once when a state changes. Clear goes on its own. Nothing here runs on the web or on Android.
+  let screenOn = false, lastSent = '', sentAt = 0;
+  function relay(now) {
+    if (!screenOn || !toShell || !S.gen) return;
+    const t = performance.now();
+    if (!now && t - sentAt < 33) return;
+    const msg = JSON.stringify({ snap: snapshot(), frozen: S.frozen, faded: S.faded, black: S.black });
+    if (!now && msg === lastSent) return;
+    lastSent = msg; sentAt = t;
+    toShell.postMessage(msg);
+  }
+  function relayClear() { if (screenOn && toShell) toShell.postMessage(JSON.stringify({ clear: true })); }
+  function screenConnected(on) { screenOn = !!on; lastSent = ''; relay(true); cameraNote(); }
+  // the camera stays on this device: a second capture would stop the first and ask on a screen nobody can touch
+  function cameraNote() { if (screenOn && S.source === 'camera') say('The camera shows here only. The screen keeps the last pattern.', true); }
+
+  // On the screen: take what the controls sent. Not restore(): this runs 30 times a second, so it never resets the
+  // clocks, changes Detail, rebuilds the page or saves. The chain is rebuilt only when the source or Trails change.
+  let applying = null, nextMsg = null;
+  function apply(msg) {
+    if (msg.clear) { clearTrails(); return; }
+    if ('frozen' in msg && !!msg.frozen !== S.frozen) setFrozen(!!msg.frozen);
+    if ('faded' in msg && !!msg.faded !== S.faded) setFaded(!!msg.faded);
+    if ('black' in msg && !!msg.black !== S.black) setBlack(!!msg.black);
+    const snap = msg.snap;
+    if (!snap) return;
+    if (applying) { nextMsg = msg; return; }
+    // the camera stays on the phone, so the screen keeps the pattern it had
+    const source = snap.source === 'camera' || !(snap.source in SOURCES) ? (S.source in SOURCES && S.source !== 'camera' ? S.source : 'osc')
+      : snap.source in SOURCES ? snap.source : 'osc';
+    const driftOn = snap.driftOn !== false;
+    const keep = { gen: snap.gens && snap.gens[source], drift: snap.drift, colour: snap.colour };
+    Object.assign(S.rig.values, snap.rig || {}); checked(S.rig);
+    if (!S.gen || source !== S.source || driftOn !== S.driftOn) {
+      S.source = source; S.driftOn = driftOn;
+      applying = buildChain(keep).catch(e => console.warn('screen:', e)).then(() => {
+        applying = null;
+        if (nextMsg) { const m = nextMsg; nextMsg = null; apply(m); }
+      });
+      return;
+    }
+    if (keep.gen && S.gen.isf) { Object.assign(S.gen.values, keep.gen); checked(S.gen); }
+    Object.assign(S.drift.values, oldDelay(snap.drift) || {}); checked(S.drift);
+    Object.assign(S.colour.values, snap.colour || {}); checked(S.colour); fitPalette();
+  }
+  // the screen's own size in pixels, from the app (the second web view cannot trust screen.width): kept 16:9, at most
+  // 1920 wide, with black bars where the screen's shape differs. Detail plays no part.
+  function screenSize(px) {
+    const w = Math.max(16, Math.round(Math.min(px[0], px[1] * 16 / 9, 1920) / 2) * 2);
+    engine.setFixedSize([w, Math.max(16, Math.round(w * 9 / 32) * 2)]);
+  }
+
   // ---- start -------------------------------------------------------------------------------------------------
   (async function start() {
     const saved = store.get('state', null);
-    if (saved) { S.source = saved.source in SOURCES && saved.source !== 'camera' ? saved.source : 'osc'; S.driftOn = saved.driftOn !== false; S.detail = DETAIL.some(d => d[1] === saved.detail) ? saved.detail : 0.5; S.saved = saved.gens || {}; Object.assign(S.rig.values, saved.rig || {}); }
+    if (saved) { S.source = saved.source in SOURCES && saved.source !== 'camera' && saved.source !== 'ndi' ? saved.source : 'osc'; S.driftOn = saved.driftOn !== false; S.detail = DETAIL.some(d => d[1] === saved.detail) ? saved.detail : 0.5; S.saved = saved.gens || {}; Object.assign(S.rig.values, saved.rig || {}); }
     engine.setScale(S.detail);
+    if (OUT) {
+      const q = new URLSearchParams(location.search), px = [Number(q.get('w')), Number(q.get('h'))];
+      if (px[0] > 0 && px[1] > 0) screenSize(px);
+    }
     const failed = e => e.missing ? 'The synth files did not load. Open Mothlight No.01 from its web address, not from a downloaded file.'
       : 'This device\'s graphics could not build the synth: ' + String(e.message || e).split('\n')[0] + '. Try another browser.';
     try { await buildChain(saved); }
@@ -1189,7 +1474,16 @@
     showDelay();
     buildMems();
     if (window.nxOut && store.get('videoOut', false)) setVideoOut(true);
-    window.mothlight = { S, engine, controls, camera, videoOut, param, modulate, randomise, reset: resetPatch, midi: () => midiMap };
+    if (window.nxNdi && !OUT && store.get('ndiOut', false)) setNdiOut(true);
+    if (window.nxNdi) {   // NDI's notice belongs in About too
+      const about = document.createElement('p'); about.className = 'num-small';
+      const a = document.createElement('a'); a.href = 'https://ndi.video/'; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'ndi.video';
+      about.append('NDI out uses NDI\u00ae. NDI\u00ae is a registered trademark of Vizrt NDI AB, ', a, '.');
+      $('helpVersion').parentElement.before(about);
+    }
+    window.mothlight = { S, engine, controls, camera, videoOut, param, modulate, randomise, reset: resetPatch, midi: () => midiMap,
+      snapshot, apply, screenSize, screen: screenConnected, push: () => relay(true), ndiIn };
+    if (toShell) toShell.postMessage(JSON.stringify({ ready: OUT ? 'screen' : 'controls' }));
     requestAnimationFrame(loop);
     setTimeout(() => { stageFor('osc').then(() => stageFor('modular')).catch(() => {}); }, 1000);
   })();
