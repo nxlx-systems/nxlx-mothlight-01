@@ -32,11 +32,11 @@
 | Feature | What it does |
 |---|---|
 | **Two pattern engines** | Solo (two oscillators, one bending the other) or Duo (two full oscillators and a mix). Or use your camera as the source. |
-| **Feedback trails** | Length, key, sharpen and edges, plus Frames (the trails fed from a frame up to 60 frames back) or Smear (a long exposure), so patterns trail, repeat and grow. |
+| **Feedback trails** | Length, key, sharpen and edges, plus Frames (the trails also fed from an earlier frame, 2 to 60 frames back, blended by Amount) or Smear (a long exposure), so patterns trail, repeat and grow. |
 | **Move** | Mirror, zoom, turn and slide, all working on the trails as they build. |
 | **Colour, last** | Colour is decided after the feedback, so any pattern, the camera or the trails can wear any colour. |
 | **Two LFOs** | Slow movers you can send to zoom, turn, bend, angle, hue or key, so the picture keeps moving on its own. |
-| **Made to perform** | Perform (picture only), Freeze, Fade, Clear, Random, eight presets, and Blackout on a hold. Tap the number above a fader to put it back. |
+| **Made to perform** | Perform (picture only), Freeze, Fade, Clear, Random, eight presets, and Blackout on a hold. Tap the number above a fader to put it back where it starts. |
 | **MIDI learn** | Map a knob to any control in a few taps, in browsers with Web MIDI. |
 | **Works offline** | Install it once and it opens with no internet. It updates only when you tap Update now, so it never changes in the middle of a set. |
 | **Backups** | Save your settings, presets and MIDI map to one small file, and restore them on any device. |
