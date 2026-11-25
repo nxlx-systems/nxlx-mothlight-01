@@ -24,8 +24,9 @@
     <span class="menuwrap">
       <button type="button" id="helpOpen" aria-haspopup="menu" aria-expanded="false" aria-controls="menu">Menu</button>
       <span class="menu" id="menu" role="menu" hidden>
+        <span class="menukind" role="presentation"><span class="chip" id="kind">Web</span></span>
         <button type="button" role="menuitem" data-to="helpTitle">How to play</button>
-        <button type="button" role="menuitem" data-to="homeTitle">Put it on your home screen</button>
+        <button type="button" role="menuitem" data-to="homeTitle" class="webonly">Put it on your home screen</button>
         <button type="button" role="menuitem" data-to="updTitle">Updates and backups</button>
         <button type="button" role="menuitem" data-to="aboutTitle">About</button>
       </span>
@@ -39,7 +40,6 @@
       <div class="now">
         <div class="frame"><canvas id="out"></canvas></div>
         <div class="meta">
-          <p class="title" id="name">Solo</p>
           <span class="chip live" id="chipState">Live</span>
           <span class="chip attn" id="chipFrozen" hidden>Frozen</span>
           <span class="chip attn" id="chipFaded" hidden>Faded</span>
@@ -95,13 +95,13 @@
       <li>MIDI learn: tap MIDI learn, tap a control, then move a knob. It needs a browser with Web MIDI, such as Chrome or Edge on a computer, or Chrome on Android. Safari does not have it.</li>
       <li>With a keyboard: arrow keys move a fader or pad, Delete puts it back, Enter recalls a preset and Shift and Enter saves one.</li>
     </ul>
-    <h3 id="homeTitle">Put it on your home screen</h3>
-    <ul>
+    <h3 id="homeTitle" class="webonly">Put it on your home screen</h3>
+    <ul class="webonly">
       <li>iPhone or iPad: open it in Safari, tap Share, then Add to Home Screen.</li>
       <li>Android phones and tablets, Fire included: open the browser menu, then Install app or Add to Home screen.</li>
       <li>Computers: in Chrome or Edge, use the install button in the address bar. In Safari on a Mac, choose File, then Add to Dock. In other browsers, bookmark it.</li>
     </ul>
-    <p>Once installed it opens with no internet. Your settings and presets stay in this browser on this device. Tried so far on an Amazon Fire 7 (2019) and an iPhone 17 Pro; other devices are not yet tested.</p>
+    <p class="webonly">Once installed it opens with no internet. Your settings and presets stay in this browser on this device. Tried so far on an Amazon Fire 7 (2019) and an iPhone 17 Pro; other devices are not yet tested.</p>
     <h3 id="updTitle">Updates and backups</h3>
     <p id="updAbout">Mothlight No.01 stays as it is until you choose to update, so it never changes in the middle of a set. Updating keeps your settings, presets and MIDI map.</p>
     <div class="helpbtns" id="updRow"><button type="button" id="updCheck">Check for updates</button><button type="button" id="updGo" hidden>Update now</button><button type="button" id="updAgain" hidden>Fetch the app again</button></div>

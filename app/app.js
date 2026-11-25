@@ -306,7 +306,6 @@
     }
     chain.push(S.colour);
     engine.setChain(chain, true);
-    $('name').textContent = SOURCES[S.source].name + (S.driftOn ? ' with trails' : '');
     $('clear').classList.toggle('idle', !S.driftOn); $('clear').setAttribute('aria-disabled', String(!S.driftOn));
     buildTabs();
     save();
@@ -624,6 +623,7 @@
     }
     if (p.floats) {
       const faders = document.createElement('div'); faders.className = 'faders';
+      if (p.label === 'LFO') faders.classList.add('pairs');   // LFO 1's two faders, then LFO 2's, kept apart (D53)
       // only the delay fader of the style chosen: Frames for Frames, Time for Smear
       const other = id => id === (smearing() ? 'drift.frames' : 'drift.echotime');
       p.floats.filter(id => !other(id)).forEach(id => { const f = makeFader(id); if (f) faders.append(f); });
@@ -1225,6 +1225,8 @@
     $('menu').hidden = !on; $('helpOpen').setAttribute('aria-expanded', String(on));
     if (on) $('menu').querySelector('button').focus();
   }
+  $('kind').textContent = SHELL ? 'App' : 'Web';   // tells the native app from the web app on the same device
+  if (SHELL) document.querySelectorAll('.webonly').forEach(el => el.hidden = true);   // an app is on the home screen already
   $('helpOpen').onclick = () => setMenu($('menu').hidden);
   $('menu').querySelectorAll('button').forEach(b => b.onclick = () => {
     setMenu(false); setHelp(true);
@@ -1232,7 +1234,7 @@
     if (to && b.dataset.to !== 'helpTitle') { const hb = $('helpBody'); hb.scrollTop += to.getBoundingClientRect().top - hb.getBoundingClientRect().top - 8; }
   });
   $('menu').addEventListener('keydown', e => {
-    const items = [...$('menu').querySelectorAll('button')], i = items.indexOf(document.activeElement);
+    const items = [...$('menu').querySelectorAll('button:not([hidden])')], i = items.indexOf(document.activeElement);
     if (e.key === 'Escape') { e.preventDefault(); setMenu(false); $('helpOpen').focus(); }
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus(); }
   });

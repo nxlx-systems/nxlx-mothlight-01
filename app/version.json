@@ -1,4 +1,4 @@
 {
- "version": "1.1.1",
- "notes": "Tap the number above a fader to put it back, or a pad's name to centre it. Fader and pad numbers now read 0 to 100 (or -100 to 100 from the middle), with seconds for Time and frames for Frames. Solo's Window has Outside: Black or Glow, with a Glow level fader. The Delay on Trails is now Frames or Smear: Frames delays the trails by 2 to 60 frames and blends in by Amount. Original colour is now Camera colour, shown for Camera and NDI. LFO ramps rise and fall back more gently."
+ "version": "1.1.2",
+ "notes": "The name under the picture is gone. Menu now shows App or Web, so the app and the web app are easy to tell apart on one device. The web app has a new icon: a pink square with black rings. On the LFO page, LFO 1 and LFO 2 each keep their own faders together."
 }
