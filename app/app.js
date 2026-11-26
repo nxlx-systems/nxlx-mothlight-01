@@ -738,7 +738,50 @@
     });
     row.append(lab, seg); return row;
   }
-  function randomise() {
+  // Random also picks Solo or Duo while the synth plays (never to or from Camera or NDI), rolls the values, then looks
+  // at the real picture and brings it into a readable range (D63)
+  let randomBusy = false;
+  async function randomise() {
+    if (randomBusy) return;   // a change of source is still being built
+    if (randomOn('osc') && !picture() && Math.random() < 0.5) {
+      randomBusy = true;
+      try { S.source = S.source === 'osc' ? 'modular' : 'osc'; await buildChain(); }
+      finally { randomBusy = false; }
+    }
+    rollValues();
+    keepReadable(0);
+  }
+  // Random's promise is a picture that is never too dark and never blown out. How light it comes out depends on
+  // everything at once (the trails' key and feed, Duo's mix, the palette), so after a Random the app reads its own
+  // picture once the trails have settled and nudges Brightness until the average sits between DIM and GLARE. A picture
+  // that stays near black even at full Brightness is rolled again. A Freeze, Fade, Blackout or another Random stops it.
+  const DIM = 50, GLARE = 190;
+  let lightCheck = 0, lightBuf = null;
+  function meanLight() {
+    const [w, h] = engine.size, n = w * h * 4;
+    if (!lightBuf || lightBuf.length !== n) lightBuf = new Uint8Array(n);
+    engine.readFrame(lightBuf);
+    let sum = 0, count = 0;
+    for (let k = 0; k < n; k += 28) { sum += lightBuf[k] * 0.3 + lightBuf[k + 1] * 0.59 + lightBuf[k + 2] * 0.11; count++; }
+    return sum / count;
+  }
+  function keepReadable(tries) {
+    const my = ++lightCheck;
+    setTimeout(() => {
+      if (my !== lightCheck) return;
+      if (S.fade) { keepReadable(tries); return; }   // a change of source is still fading across
+      const c = param('colour.bright');
+      if (!c || S.frozen || S.black || S.faded || S.level < 1 || picture() || tries >= 6) return;
+      const m = meanLight(), was = c.get();
+      if (m >= DIM && m <= GLARE) return;
+      if (m < DIM && (m < 6 || was >= 1.85)) { if (tries >= 3) return; rollValues(); }
+      else if (m < DIM) c.set(Math.min(1.9, was * Math.min(1.6, Math.pow(DIM * 1.3 / Math.max(m, 8), 0.8))));
+      else c.set(Math.max(0.35, was * Math.pow(GLARE * 0.85 / m, 0.8)));
+      refresh(); save();
+      keepReadable(tries + 1);
+    }, tries ? 450 : 900);
+  }
+  function rollValues() {
     const between = (lo, hi) => lo + Math.random() * (hi - lo);
     const chance = p => Math.random() < p;
     const roll = id => {
