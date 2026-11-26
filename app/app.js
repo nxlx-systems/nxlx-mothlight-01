@@ -1082,6 +1082,9 @@
 
   // ---- speed clocks and LFOs: added up here so moving a speed never jumps the picture --------------------------------
   const phase = { a: 0, b: 0, cycle: 0, lfo: [0, 0], round: [0, 0] };
+  // how fast each clock turned on the last frame, in turns a second: the second screen uses these to work out where
+  // the phone's clocks are by now (D55)
+  const rates = { a: 0, b: 0, cycle: 0, lfo: [0, 0], round: [0, 0] };
   // Flash limit for the Angle LFO. Turning a pattern of stripes moves the stripes past each pixel, and the pixels far
   // from the centre move the most: with many bands even a slow turn swept stripes past them over 20 times a second.
   // So the Angle LFO may only turn as fast as keeps every pixel to 3 light-dark changes a second, counting the
@@ -1117,7 +1120,8 @@
     for (const stage of gens.concat(S.drift, S.colour)) stage.mods = {};
     const full = S.stages.modular;
     if (full) {
-      phase.a = (phase.a + dt * full.values.a_rate) % 1; phase.b = (phase.b + dt * full.values.b_rate) % 1;
+      rates.a = full.values.a_rate; rates.b = full.values.b_rate;
+      phase.a = (phase.a + dt * rates.a) % 1; phase.b = (phase.b + dt * rates.b) % 1;
       full.uniforms = { nx_on: 1, nx_pa: phase.a, nx_pb: phase.b };
     }
     [1, 2].forEach((n, k) => {
@@ -1125,6 +1129,7 @@
       // Zoom and Turn swing the whole trail back and forth: above TRAILS_LFO_MAX swings a second, with many bands,
       // large areas flashed more than 3 times a second (test/flash.mjs), so those two go no faster
       const rate = to[1] === 'drift' && to[0] !== 'Key' ? Math.min(v['lfo' + n + '_rate'], TRAILS_LFO_MAX) : v['lfo' + n + '_rate'];
+      rates.lfo[k] = rate; rates.round[k] = 0;
       phase.lfo[k] = (phase.lfo[k] + dt * rate) % 1;
       if (!to[1]) return;
       const stage = S[to[1]], name = stage.isf && to[2].find(x => inputOf(stage, x));
@@ -1135,6 +1140,7 @@
       if (shape && to.length > 4) {
         // a ramp round the circle turns at a steady speed: no faster than the limit
         const speed = capped ? Math.min(rate * to[4], angleMax) : rate * to[4];
+        rates.round[k] = speed;
         phase.round[k] = (phase.round[k] + dt * speed) % 1;
         stage.mods[name] = (stage.mods[name] || 0) + sign * phase.round[k];
       } else {
@@ -1149,7 +1155,9 @@
         stage.mods[name] = turned - Math.floor(turned) - was;
       }
     });
+    rates.cycle = v.cycle;
     phase.cycle = (phase.cycle + dt * v.cycle) % 1;
+    if (OUT) followPhone(dt);
     const hue = S.colour.values.hue + (S.colour.mods.hue || 0) + phase.cycle;
     S.colour.mods.hue = hue - Math.floor(hue) - S.colour.values.hue;
   }
@@ -1323,7 +1331,7 @@
     const name = 'mothlight-backup-' + new Date().toISOString().slice(0, 10) + '.json';
     const file = new File([backupText()], name, { type: 'application/json' });
     try {
-      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Mothlight No.01 backup' }); note('bkNote', 'Backup shared. Keep it somewhere safe.'); return; }
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Mothlight backup' }); note('bkNote', 'Backup shared. Keep it somewhere safe.'); return; }
     } catch (e) { if (e.name === 'AbortError') return; }
     const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
@@ -1344,7 +1352,7 @@
         const v = JSON.parse(b.data[k]);
         if ((k === 'midi' && (!v || typeof v !== 'object' || Array.isArray(v))) || (k === 'mems' && !Array.isArray(v))) throw new Error('damaged');
       }
-    } catch (e) { note('bkNote', 'That is not a Mothlight No.01 backup, so nothing was changed.'); return; }
+    } catch (e) { note('bkNote', 'That is not a Mothlight backup, so nothing was changed.'); return; }
     const when = b.saved ? new Date(b.saved).toLocaleString() : 'an unknown date';
     if (!confirm('Replace the settings, presets and MIDI map on this device with the backup from ' + when + '? You can undo this afterwards.')) return;
     keepSafetyCopy('beforeRestore'); store.frozen = true;
@@ -1384,7 +1392,7 @@
   // ---- install as an app (home-screen icon, opens full screen) ------------------------------------------------
   let installEvt = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('install').hidden = SHELL || !!store.get('installed', false); });
-  window.addEventListener('appinstalled', () => { installEvt = null; $('install').hidden = true; say('Mothlight No.01 is installed. Open it from its icon, online or offline.', true); });
+  window.addEventListener('appinstalled', () => { installEvt = null; $('install').hidden = true; say('Mothlight is installed. Open it from its icon, online or offline.', true); });
   $('install').onclick = async () => {
     if (!installEvt) return;
     installEvt.prompt();
@@ -1407,9 +1415,51 @@
     const t = performance.now();
     if (!now && t - sentAt < 33) return;
     const msg = JSON.stringify({ snap: snapshot(), frozen: S.frozen, faded: S.faded, black: S.black });
-    if (!now && msg === lastSent) return;
+    // the settings go when they change; the clocks go at least 5 times a second, so the screen keeps in step
+    if (!now && msg === lastSent && t - sentAt < 200) return;
     lastSent = msg; sentAt = t;
-    toShell.postMessage(msg);
+    toShell.postMessage(msg.slice(0, -1) + ',"clock":' + JSON.stringify(clockNow()) + '}');
+  }
+  // The clocks that move the picture (the oscillators, the LFOs, Hue cycle and Solo's own clock) are added up on each
+  // page, so the screen's drifted away from the phone's and the colours on the TV were not the phone's (D55). The
+  // phone sends where its clocks are, how fast they turn and when, by the wall clock both pages share.
+  function clockNow() {
+    const g = S.gen;
+    return { at: Date.now(), phase, rates, solo: g && g.clockInput ? [g.clock.scaled, Math.max(1e-3, Math.min(+g.values[g.clockInput] || 0, 3)), SOURCES[S.source].period] : null };
+  }
+  // On the screen: where the phone's clocks are by now. The screen eases its own clocks there rather than jumping, at
+  // most a quarter turn a second on top of their own speed, so a large gap (the phone was in the background) closes
+  // over a few seconds with no sudden swing of colour or shape. Only the first time, before the screen has shown
+  // anything for long, does it jump straight there.
+  let phoneClock = null, followed = false;
+  const FOLLOW_MAX = 0.25, FOLLOW_GAIN = 4;
+  function followPhone(dt) {
+    const c = phoneClock;
+    if (!c) return;
+    const since = (Date.now() - c.at) / 1000;
+    if (since > 2 || since < -1) return;   // nothing new from the phone: keep going on its own
+    const ahead = c.frozen ? 0 : Math.max(0, since);
+    const jump = !followed; followed = true;
+    // mine and theirs go round from 0 to size; the gap is the short way round, in the clock's own units
+    const step = (mine, theirs, rate, size) => {
+      let gap = (theirs + rate * ahead - mine) % size;
+      if (gap > size / 2) gap -= size; else if (gap < -size / 2) gap += size;
+      if (!jump) gap = Math.max(-FOLLOW_MAX * dt, Math.min(FOLLOW_MAX * dt, gap * Math.min(1, FOLLOW_GAIN * dt)));
+      const v = (mine + gap) % size;
+      return v < 0 ? v + size : v;
+    };
+    const p = c.phase, r = c.rates;
+    phase.a = step(phase.a, p.a, r.a, 1); phase.b = step(phase.b, p.b, r.b, 1);
+    phase.cycle = step(phase.cycle, p.cycle, r.cycle, 1);
+    for (let k = 0; k < 2; k++) {
+      phase.lfo[k] = step(phase.lfo[k], p.lfo[k], r.lfo[k], 1);
+      phase.round[k] = step(phase.round[k], p.round[k], r.round[k], 1);
+    }
+    const g = S.gen;
+    if (c.solo && g && g.clockInput) {
+      const [scaled, rate, period] = c.solo;
+      g.clock.scaled = step(g.clock.scaled, scaled, rate, period);
+    }
   }
   function relayClear() { if (screenOn && toShell) toShell.postMessage(JSON.stringify({ clear: true })); }
   function screenConnected(on) { screenOn = !!on; lastSent = ''; relay(true); cameraNote(); }
@@ -1424,6 +1474,7 @@
     if ('frozen' in msg && !!msg.frozen !== S.frozen) setFrozen(!!msg.frozen);
     if ('faded' in msg && !!msg.faded !== S.faded) setFaded(!!msg.faded);
     if ('black' in msg && !!msg.black !== S.black) setBlack(!!msg.black);
+    if (msg.clock && msg.clock.phase && msg.clock.rates) phoneClock = Object.assign(msg.clock, { frozen: !!msg.frozen });
     const snap = msg.snap;
     if (!snap) return;
     if (applying) { nextMsg = msg; return; }
@@ -1461,7 +1512,7 @@
       const q = new URLSearchParams(location.search), px = [Number(q.get('w')), Number(q.get('h'))];
       if (px[0] > 0 && px[1] > 0) screenSize(px);
     }
-    const failed = e => e.missing ? 'The synth files did not load. Open Mothlight No.01 from its web address, not from a downloaded file.'
+    const failed = e => e.missing ? 'The synth files did not load. Open Mothlight from its web address, not from a downloaded file.'
       : 'This device\'s graphics could not build the synth: ' + String(e.message || e).split('\n')[0] + '. Try another browser.';
     try { await buildChain(saved); }
     catch (e) {
@@ -1470,7 +1521,7 @@
       store.set('state', null);
       S.source = 'osc'; S.driftOn = true; S.saved = {}; S.stages = {}; S.gen = null; S.fade = null;
       Object.assign(S.rig.values, MothlightCore.defaults(RIG.isf));
-      try { await buildChain(); say('The saved settings did not load, so Mothlight No.01 started fresh. Presets are kept.'); }
+      try { await buildChain(); say('The saved settings did not load, so Mothlight started fresh. Presets are kept.'); }
       catch (e2) { say(failed(e2)); return; }
     }
     showDelay();

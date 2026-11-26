@@ -1,4 +1,4 @@
 {
- "version": "1.1.2",
- "notes": "The name under the picture is gone. Menu now shows App or Web, so the app and the web app are easy to tell apart on one device. The web app has a new icon: a pink square with black rings. On the LFO page, LFO 1 and LFO 2 each keep their own faders together."
+ "version": "1.1.3",
+ "notes": "In the iPhone app, a TV or screen over AirPlay or a cable now shows the same colours and movement as the phone, and stays in step after the phone has been in the background."
 }
