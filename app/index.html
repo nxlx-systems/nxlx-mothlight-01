@@ -1,143 +1,23 @@
 <!doctype html>
-<html lang="en-CA">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Mothlight No.01</title>
-<meta name="theme-color" content="#FF4FA3">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Mothlight">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="app.css">
-</head>
-<body>
-<div id="app">
-  <header class="place">
-    <h1>Mothlight</h1>
-    <span class="spacer"></span>
-    <span class="num-small" id="fps">-- fps</span>
-    <button type="button" id="panel" hidden>Panel</button>
-    <button type="button" id="outOpen" aria-pressed="false">Output</button>
-    <span class="menuwrap">
-      <button type="button" id="helpOpen" aria-haspopup="menu" aria-expanded="false" aria-controls="menu">Menu</button>
-      <span class="menu" id="menu" role="menu" hidden>
-        <span class="menukind" role="presentation"><span class="chip" id="kind">Web</span></span>
-        <button type="button" role="menuitem" data-to="helpTitle">How to play</button>
-        <button type="button" role="menuitem" data-to="homeTitle" class="webonly">Put it on your home screen</button>
-        <button type="button" role="menuitem" data-to="updTitle">Updates and backups</button>
-        <button type="button" role="menuitem" data-to="aboutTitle">About</button>
-      </span>
-    </span>
-    <button type="button" id="install" hidden>Install</button>
-    <button type="button" id="full">Full screen</button>
-  </header>
-
-  <main>
-    <section class="col" aria-label="Output">
-      <div class="now">
-        <div class="frame"><canvas id="out"></canvas></div>
-        <div class="meta">
-          <span class="chip live" id="chipState">Live</span>
-          <span class="chip attn" id="chipFrozen" hidden>Frozen</span>
-          <span class="chip attn" id="chipFaded" hidden>Faded</span>
-          <span class="chip" id="chipDelay" hidden>Frames</span>
-          <span class="chip" id="chipMidi" hidden>MIDI</span>
-          <span class="chip" id="chipOut" hidden>Video out</span>
-          <span class="chip attn" id="chipLearn" hidden>Learn</span>
-          <span class="chip" id="chipOffline" hidden>Offline ready</span>
-          <span class="chip" id="chipUpdate" hidden>Update ready</span>
-        </div>
-      </div>
-      <div class="mems" id="mems" aria-label="Presets"></div>
-    </section>
-
-    <section class="col" aria-label="Modules">
-      <div class="tabs" role="tablist" id="tabs"></div>
-      <div class="scrollbox"><div class="page" id="page"></div><div class="scrolltrack" id="pageTrack" aria-hidden="true" hidden><div></div></div></div>
-      <p class="morenote" id="pageMore" aria-hidden="true" hidden></p>
-    </section>
-  </main>
-
-  <footer class="transport">
-    <button type="button" class="tbtn" id="perform"><span>Perform</span><small>Picture only</small></button>
-    <div class="sep"></div>
-    <div class="mid">
-      <button type="button" class="tbtn" id="freeze" aria-pressed="false"><span>Freeze</span><small>Hold frame</small></button>
-      <button type="button" class="tbtn" id="fade" aria-pressed="false"><span>Fade</span><small>2 s</small></button>
-      <button type="button" class="tbtn" id="clear"><span>Clear</span><small>Trails</small></button>
-      <button type="button" class="tbtn" id="random"><span>Random</span><small>New look</small></button>
-      <button type="button" class="tbtn" id="learn" aria-pressed="false"><span>MIDI learn</span><small id="learnHint">Map a knob</small></button>
-    </div>
-    <div class="sep"></div>
-    <button type="button" class="tbtn danger" id="black"><span>Blackout</span><small>Hold</small><i class="hold"></i></button>
-  </footer>
-</div>
-<button type="button" id="back" hidden>Show controls</button>
-<div id="msg" role="status" hidden><span id="msgText"></span><button type="button" id="msgClose">Close</button></div>
-<div id="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
-  <div class="helpwrap">
-  <div class="scrollbox helpscroll">
-  <div class="helpbox" id="helpBody" tabindex="0" role="region" aria-labelledby="helpTitle">
-    <h2 id="helpTitle">Mothlight No.01</h2>
-    <p class="safety"><b>Light safety.</b> Mothlight No.01 makes moving and changing light patterns. If you or anyone watching has photosensitive epilepsy, or a pattern makes you feel unwell, stop and look away. Hold Blackout to stop the picture.</p>
-    <h3>How to play it</h3>
-    <ul>
-      <li>The tabs run left to right in the order the signal flows: Source, Osc (the pattern), Trails, Move, Colour and LFO. Output, at the top beside Menu, is the last step.</li>
-      <li>To put a fader back where it starts, tap the number above it (or tap the fader twice). To centre a pad, tap its name. An underlined number means it has moved.</li>
-      <li>A fader's number runs from 0 to 100 along its travel, or from -100 to 100 with 0 in the middle when the middle is its rest point. A pad shows each direction the same way. Time shows seconds and Frames shows frames.</li>
-      <li>Presets P1 to P8: hold to save, tap to recall.</li>
-      <li>Blackout: hold to go black, tap to come back.</li>
-      <li>Perform shows the picture alone. Tap the picture, then Show controls, to come back.</li>
-      <li>Random only changes the groups lit on the Source page.</li>
-      <li>MIDI learn: tap MIDI learn, tap a control, then move a knob. It needs a browser with Web MIDI, such as Chrome or Edge on a computer, or Chrome on Android. Safari does not have it.</li>
-      <li>With a keyboard: arrow keys move a fader or pad, Delete puts it back, Enter recalls a preset and Shift and Enter saves one.</li>
-    </ul>
-    <h3 id="homeTitle" class="webonly">Put it on your home screen</h3>
-    <ul class="webonly">
-      <li>iPhone or iPad: open it in Safari, tap Share, then Add to Home Screen.</li>
-      <li>Android phones and tablets, Fire included: open the browser menu, then Install app or Add to Home screen.</li>
-      <li>Computers: in Chrome or Edge, use the install button in the address bar. In Safari on a Mac, choose File, then Add to Dock. In other browsers, bookmark it.</li>
-    </ul>
-    <p class="webonly">Once installed it opens with no internet. Your settings and presets stay in this browser on this device. Tried so far on an Amazon Fire 7 (2019) and an iPhone 17 Pro; other devices are not yet tested.</p>
-    <h3 id="updTitle">Updates and backups</h3>
-    <p id="updAbout">Mothlight stays as it is until you choose to update, so it never changes in the middle of a set. Updating keeps your settings, presets and MIDI map.</p>
-    <div class="helpbtns" id="updRow"><button type="button" id="updCheck">Check for updates</button><button type="button" id="updGo" hidden>Update now</button><button type="button" id="updAgain" hidden>Fetch the app again</button></div>
-    <p class="helpnote" id="updNote" role="status" hidden></p>
-    <p>A backup is one small file holding your settings, presets and MIDI map. Make one before a show, or use it to move them to another device.</p>
-    <div class="helpbtns">
-      <button type="button" id="bkSave">Back up to a file</button>
-      <label class="btnlike" for="bkFile" id="bkLoad" role="button" tabindex="0">Restore from a file</label>
-      <input type="file" id="bkFile" class="vh" accept=".json,application/json,text/plain" tabindex="-1" aria-hidden="true">
-      <button type="button" id="bkCopy">Copy as text</button>
-      <button type="button" id="bkPaste">Restore from text</button>
-      <button type="button" id="bkUndo" hidden>Undo the last restore</button>
-    </div>
-    <p class="helpnote" id="bkNote" role="status" hidden></p>
-    <div id="pasteArea" hidden>
-      <textarea id="pasteBox" rows="4" aria-label="Backup text" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
-      <div class="helpbtns"><button type="button" id="pasteGo">Restore from text</button><button type="button" id="pasteCancel">Cancel</button></div>
-    </div>
-    <h3 id="aboutTitle">About</h3>
-    <p>Made by Anthony Giglio of NXLX.Systems. Anthony is an AV performer and VJ in Saskatoon who builds tools for the stage.</p>
-    <ul>
-      <li><a href="https://nxlx.gumroad.com/l/mothlight-no-01" target="_blank" rel="noopener">Support this app</a>: pay what you want on Gumroad</li>
-      <li><a href="https://nxlx.gumroad.com" target="_blank" rel="noopener">More from NXLX</a>: stage tools and updates on Gumroad</li>
-      <li><a href="https://instagram.com/nxlx.systems" target="_blank" rel="noopener">Instagram</a>: @nxlx.systems</li>
-    </ul>
-    <p class="num-small">NXLX.Systems · version <span id="helpVersion"></span></p>
-    <button type="button" id="helpClose">Close</button>
-  </div>
-  <div class="scrolltrack" id="helpTrack" aria-hidden="true" hidden><div></div></div>
-  </div>
-  <p class="morenote" id="helpMore" aria-hidden="true" hidden></p>
-  </div>
-</div>
-<script src="version.js"></script>
-<script src="core.js"></script>
-<script src="../isf/mothlight-isf.js"></script>
-<script src="app.js"></script>
-</body>
-</html>
+<html lang="en-CA"><head><meta charset="utf-8"><title>Nightbloom No.01 has moved</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;background:#0B0B0D;color:#F2EFE8;font:17px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;padding:32px 20px}
+main{max-width:34rem;margin:0 auto}
+h1{font-size:1.6rem;line-height:1.25;margin:0 0 16px}
+a{color:#5FCFC0}
+.go{display:inline-block;margin:8px 0 24px;padding:14px 20px;border:1px solid #5FCFC0;border-radius:3px;font-weight:600;text-decoration:none}
+.quiet{color:#B4B1AA}
+</style>
+</head><body><main>
+<h1>Mothlight No.01 is now Nightbloom No.01, at a new address</h1>
+<p>Same instrument, new name. Open it here:</p>
+<p><a class="go" href="https://nxlx-systems.github.io/nxlx-nightbloom-01/">nxlx-systems.github.io/nxlx-nightbloom-01</a></p>
+<p><strong>Had it on your home screen?</strong></p>
+<ol>
+<li>If your old copy still opens, go to Menu and make a backup first.</li>
+<li>Open the new address and add it to your home screen again.</li>
+<li>In the new copy, go to Menu and restore your backup if your presets are not there.</li>
+</ol>
+<p class="quiet">Settings, presets and MIDI maps carry over through a backup. More from NXLX: <a href="https://nxlx.gumroad.com">nxlx.gumroad.com</a></p>
+</main></body></html>
